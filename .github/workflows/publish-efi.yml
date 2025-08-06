@@ -1,0 +1,52 @@
+name: Publish EFI Bootloader
+
+on:
+  push:
+    branches: [ local_dev ]
+    paths:
+      - 'roles/netbootxyz/templates/disks/netboot.xyz.j2'
+      - 'user_overrides.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: false
+        default: ''
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build EFI bootloader
+        run: |
+          docker build -t localbuild --platform=linux/amd64 -f Dockerfile .
+          docker run --rm -i --platform=linux/amd64 -v $(pwd):/buildout localbuild
+
+      - name: Verify EFI file
+        run: |
+          echo "Generated EFI files:"
+          ls -la buildout/ipxe/netboot.xyz.efi
+          
+          echo "Verifying custom chain command in EFI file:"
+          strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || exit 1
+
+      - name: Rename EFI file
+        run: |
+          cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios.efi
+          echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios.efi"
+
+      - name: Upload EFI file as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: netboot.xyz-rampart-aios.efi
+          path: buildout/ipxe/netboot.xyz-rampart-aios.efi
+          retention-days: 90 
