@@ -50,4 +50,23 @@ jobs:
         with:
           name: netboot.xyz-rampart-aios.efi
           path: buildout/ipxe/netboot.xyz-rampart-aios.efi
-          retention-days: 90 
+          retention-days: 90
+
+      - name: Set version
+        id: version
+        run: |
+          echo "version=v$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        run: |
+          gh release create ${{ steps.version.outputs.version }} \
+            --title "EFI Bootloader ${{ steps.version.outputs.version }}" \
+            --notes "Custom EFI bootloader that chains to autoinstall script" \
+            --draft=false \
+            --prerelease=false
+
+      - name: Upload EFI to Release
+        run: |
+          gh release upload ${{ steps.version.outputs.version }} \
+            buildout/ipxe/netboot.xyz-rampart-aios.efi \
+            --clobber 
