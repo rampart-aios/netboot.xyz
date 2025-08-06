@@ -13,13 +13,19 @@ on:
         description: 'Version tag (e.g., v1.0.0)'
         required: false
         default: ''
+      test_mode:
+        description: 'Test mode (creates draft release)'
+        required: false
+        # default: 'true'
+        default: 'false'
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -55,9 +61,14 @@ jobs:
       - name: Set version
         id: version
         run: |
-          echo "version=v$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=v$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Create Release
+      - name: Create Release (Production Only)
+        if: github.event.inputs.test_mode != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -67,7 +78,8 @@ jobs:
             --draft=false \
             --prerelease=false
 
-      - name: Upload EFI to Release
+      - name: Upload EFI to Release (Production Only)
+        if: github.event.inputs.test_mode != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
