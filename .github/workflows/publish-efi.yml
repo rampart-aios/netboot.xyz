@@ -58,6 +58,8 @@ jobs:
           echo "version=v$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release create ${{ steps.version.outputs.version }} \
             --title "EFI Bootloader ${{ steps.version.outputs.version }}" \
@@ -66,6 +68,8 @@ jobs:
             --prerelease=false
 
       - name: Upload EFI to Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload ${{ steps.version.outputs.version }} \
             buildout/ipxe/netboot.xyz-rampart-aios.efi \
