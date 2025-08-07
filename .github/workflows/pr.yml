@@ -3,6 +3,14 @@ name: Pull Request Workflow
 on:
   pull_request:
     branches: [local_dev, development]
+    paths:
+      - 'roles/**'
+      - 'site.yml'
+      - 'user_overrides.yml'
+      - 'script/workflow.sh'
+      - '.github/workflows/minor-release.yml'
+      - '.github/workflows/major-release.yml'
+      - '.github/workflows/pr.yml'
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
