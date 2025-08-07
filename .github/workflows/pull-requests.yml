@@ -17,56 +17,22 @@ jobs:
       with:
         python-version: '3.13' # renovate: datasource=github-tags depName=python
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip  
-        pip install ansible==10.2.0 # renovate: datasource=pypi
-        pip install ansible-lint==24.7.0 # renovate: datasource=pypi
-
-    - name: Syntax Check
-      run: |
-        ansible-playbook site.yml --syntax-check
-
-    - name: Ansible lint
-      run: |
-        ansible-lint -v roles/netbootxyz/tasks
+    - name: Test Ansible
+      run: source ./script/workflow.sh && test_ansible
 
   build-pr:
     name: Build EFI for Pull Request
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build iPXE bootloader for EFI
-      run: |
-        docker build -t localbuild --platform=linux/amd64 -f Dockerfile .
-        docker run --rm -i --platform=linux/amd64 -v $(pwd):/buildout localbuild
-
-    - name: Get commit hash
-      id: commit_hash
-      run: |
-        echo "short_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-    - name: Verify EFI content
-      run: |
-        echo "Generated EFI files:"
-        ls -la buildout/ipxe/netboot.xyz.efi
-        
-        echo "Verifying custom chain command in EFI file:"
-        strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || echo "Custom content not found (this is normal for standard builds)"
-
-    - name: Rename EFI file
-      run: |
-        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
-        echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi"
+    - name: Run PR workflow
+      id: pr_workflow
+      run: source ./script/workflow.sh && run_pr_workflow
 
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
         retention-days: 90
-        name: netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
-        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
+        name: netboot.xyz-rampart-aios-${{ steps.pr_workflow.outputs.version }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.pr_workflow.outputs.version }}.efi
