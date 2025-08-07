@@ -154,15 +154,15 @@ create_release() {
         --title "$title" \
         --notes "$notes" \
         --draft=$draft \
-        --prerelease=$prerelease; then
-        log_success "Release created successfully!"
+        --prerelease=$prerelease;
+    log_success "Release created successfully!"
     
     # Upload EFI to release
     log_info "Uploading EFI to release..."
     gh release upload $version \
         buildout/ipxe/$EFI_FILENAME_PREFIX-$version.efi \
         --clobber; then
-        log_success "EFI uploaded successfully!"
+    log_success "EFI uploaded successfully!"
     
     log_success "Release process completed successfully!"
     log_info "Release URL: https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/$version"
