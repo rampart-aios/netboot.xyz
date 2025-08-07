@@ -8,7 +8,6 @@ on:
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
   ARTIFACT_RETENTION_DAYS: 90
-  DOCKER_PLATFORM: "linux/amd64"
 
 jobs:
   minor-release:

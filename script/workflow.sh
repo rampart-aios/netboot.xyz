@@ -6,19 +6,9 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
 # Configuration
 EFI_FILENAME_PREFIX="netboot.xyz-rampart-aios"
 ARTIFACT_RETENTION_DAYS=90
-DOCKER_PLATFORM="linux/amd64"
 DEFAULT_VERSION_TYPE="minor"
 MINOR_VERSION_PREFIX="v0"
 MAJOR_VERSION_PREFIX="v"
@@ -30,23 +20,23 @@ ANSIBLE_LINT_VERSION="24.7.0"
 
 # Logging functions
 log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    echo "INFO: $1"
 }
 
 log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo "SUCCESS: $1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo "WARNING: $1"
 }
 
 log_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo "ERROR: $1"
 }
 
 log_debug() {
-    echo -e "${PURPLE}🔍 $1${NC}"
+    echo "DEBUG: $1"
 }
 
 # Version management functions
@@ -104,20 +94,14 @@ get_version() {
 # Build functions
 build_efi() {
     local version=${1:-"commit-hash"}
-    local platform=${2:-"$DOCKER_PLATFORM"}
     
     log_info "Building EFI bootloader..."
     log_debug "Version: $version"
-    log_debug "Platform: $platform"
-    
-    # Set up Docker Buildx
-    log_info "Setting up Docker Buildx..."
-    docker buildx create --use --name efi-builder || true
     
     # Build EFI bootloader
     log_info "Building EFI bootloader..."
-    docker build -t localbuild --platform=$platform -f Dockerfile .
-    docker run --rm -i --platform=$platform -v $(pwd):/buildout localbuild
+    docker build -t localbuild -f Dockerfile .
+    docker run --rm -i -v $(pwd):/buildout localbuild
     
     # Verify EFI content
     log_info "Verifying EFI content..."
