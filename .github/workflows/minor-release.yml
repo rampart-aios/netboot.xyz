@@ -1,0 +1,29 @@
+name: Minor Release Workflow
+
+on:
+  # push:
+  pull_request:
+    branches: [local_dev]
+
+env:
+  EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
+  ARTIFACT_RETENTION_DAYS: 90
+  DOCKER_PLATFORM: "linux/amd64"
+
+jobs:
+  minor-release:
+    name: Create Minor Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run minor release workflow
+      id: release_workflow
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: source ./script/workflow.sh && run_release_workflow minor
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: netboot.xyz-rampart-aios-${{ steps.release_workflow.outputs.version }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.release_workflow.outputs.version }}.efi
+        retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 

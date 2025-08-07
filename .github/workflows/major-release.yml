@@ -1,0 +1,29 @@
+name: Major Release Workflow
+
+on:
+  # push:
+  pull_request:
+    branches: [development]
+
+env:
+  EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
+  ARTIFACT_RETENTION_DAYS: 90
+  DOCKER_PLATFORM: "linux/amd64"
+
+jobs:
+  major-release:
+    name: Create Major Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run major release workflow
+      id: release_workflow
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: source ./script/workflow.sh && run_release_workflow major
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: netboot.xyz-rampart-aios-${{ steps.release_workflow.outputs.version }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.release_workflow.outputs.version }}.efi
+        retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 
