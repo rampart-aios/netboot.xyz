@@ -161,7 +161,7 @@ create_release() {
     log_info "Uploading EFI to release..."
     gh release upload $version \
         buildout/ipxe/$EFI_FILENAME_PREFIX-$version.efi \
-        --clobber; then
+        --clobber;
     log_success "EFI uploaded successfully!"
     
     log_success "Release process completed successfully!"
