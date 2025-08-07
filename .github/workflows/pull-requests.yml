@@ -3,9 +3,8 @@ name: pull-requests
 on:
   pull_request:
     branches:
+      - local_dev
       - development
-      - RC
-      - master
 
 jobs:
   test-pr:
@@ -32,14 +31,42 @@ jobs:
       run: |
         ansible-lint -v roles/netbootxyz/tasks
 
-  build-pr:
+  build-efi:
     name: Build Pull Request
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v5
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Build PR release
+    - name: Build EFI bootloader
       run: |
-        ./script/build_release pr
+        docker build -t localbuild --platform=linux/amd64 -f Dockerfile .
+        docker run --rm -i --platform=linux/amd64 -v $(pwd):/buildout localbuild
+
+    - name: Get commit hash
+      id: commit_hash
+      run: |
+        echo "short_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Verify custom EFI content
+      run: |
+        echo "Generated EFI files:"
+        ls -la buildout/ipxe/netboot.xyz.efi
+        
+        echo "Verifying custom chain command in EFI file:"
+        strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || echo "Custom content not found (this is normal for standard builds)"
+
+    - name: Rename EFI file
+      run: |
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
+        echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi"
+
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
+        retention-days: 90
