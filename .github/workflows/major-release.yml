@@ -19,7 +19,11 @@ jobs:
       id: release_workflow
       env:
         GH_TOKEN: ${{ github.token }}
-      run: source ./script/workflow.sh && run_release_workflow major
+      run: |
+        source ./script/workflow.sh
+        output=$(run_release_workflow major)
+        echo "$output"
+        echo "version=$(echo "$output" | grep "version=" | tail -1 | cut -d'=' -f2)" >> $GITHUB_OUTPUT
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
