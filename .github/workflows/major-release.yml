@@ -1,7 +1,7 @@
 name: Major Release Workflow
 
 on:
-  push:
+  pull_request:
     branches: [local_dev]
     # branches: [development]
 

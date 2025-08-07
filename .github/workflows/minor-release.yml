@@ -1,7 +1,6 @@
 name: Minor Release Workflow
 
 on:
-  # push:
   pull_request:
     branches: [local_dev]
 
