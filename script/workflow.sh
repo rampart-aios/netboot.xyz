@@ -66,7 +66,6 @@ get_version() {
         fi
         
         echo "version=v$new_version"
-        log_success "Generated minor version: v$new_version"
         
     elif [ "$version_type" = "major" ]; then
         # Get the latest major version from existing releases
@@ -83,7 +82,6 @@ get_version() {
         fi
         
         echo "version=v$new_version"
-        log_success "Generated major version: v$new_version"
         
     else
         log_error "Invalid version type. Use 'minor' or 'major'"
@@ -150,19 +148,27 @@ create_release() {
     log_info "Creating release..."
     log_debug "Command: gh release create $version --title \"$title\" --notes \"$notes\" --draft=$draft --prerelease=$prerelease"
     
-    gh release create $version \
+    if gh release create $version \
         --title "$title" \
         --notes "$notes" \
         --draft=$draft \
-        --prerelease=$prerelease;
-    log_success "Release created successfully!"
+        --prerelease=$prerelease; then
+        log_success "Release created successfully!"
+    else
+        log_error "Failed to create release"
+        exit 1
+    fi
     
     # Upload EFI to release
     log_info "Uploading EFI to release..."
-    gh release upload $version \
+    if gh release upload $version \
         buildout/ipxe/$EFI_FILENAME_PREFIX-$version.efi \
-        --clobber;
-    log_success "EFI uploaded successfully!"
+        --clobber; then
+        log_success "EFI uploaded successfully!"
+    else
+        log_error "Failed to upload EFI to release"
+        exit 1
+    fi
     
     log_success "Release process completed successfully!"
     log_info "Release URL: https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/$version"
@@ -238,6 +244,8 @@ run_release_workflow() {
         log_error "Failed to extract version from output: $version_output"
         exit 1
     fi
+    
+    log_success "Generated $version_type version: $version"
     
     # Build EFI
     build_efi $version
