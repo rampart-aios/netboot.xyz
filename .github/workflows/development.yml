@@ -7,8 +7,8 @@ on:
       - local_dev
 
 jobs:
-  build-ipxe-efi:
-    name: Build EFI and Create Minor Release
+  minor-release:
+    name: Create Minor Release
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -70,8 +70,8 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         gh release create ${{ steps.version.outputs.version }} \
-          --title "EFI Bootloader ${{ steps.version.outputs.version }}" \
-          --notes "Draft Release of Rampart-AIOS EFI bootloader" \
+          --title "${{ steps.version.outputs.version }}" \
+          --notes "Draft Release of Rampart-AIOS iPXE EFI bootloader" \
           --draft=true \
           --prerelease=true
 

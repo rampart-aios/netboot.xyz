@@ -31,7 +31,7 @@ jobs:
       run: |
         ansible-lint -v roles/netbootxyz/tasks
 
-  build-ipxe-efi:
+  build-pr:
     name: Build EFI for Pull Request
     runs-on: ubuntu-latest
     steps:

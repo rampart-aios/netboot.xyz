@@ -7,8 +7,8 @@ on:
       - local_dev
 
 jobs:
-  release:
-    name: Build EFI and Create Major Release
+  major-release:
+    name: Create Major Release
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -70,8 +70,8 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         gh release create ${{ steps.version.outputs.version }} \
-          --title "EFI Bootloader ${{ steps.version.outputs.version }}" \
-          --notes "Release of Rampart-AIOS EFI bootloader" \
+          --title "${{ steps.version.outputs.version }}" \
+          --notes "Release of Rampart-AIOS iPXE EFI bootloader" \
           --draft=false \
           --prerelease=false
 
