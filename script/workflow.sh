@@ -150,28 +150,19 @@ create_release() {
     log_info "Creating release..."
     log_debug "Command: gh release create $version --title \"$title\" --notes \"$notes\" --draft=$draft --prerelease=$prerelease"
     
-    if gh release create $version \
+    gh release create $version \
         --title "$title" \
         --notes "$notes" \
         --draft=$draft \
         --prerelease=$prerelease; then
         log_success "Release created successfully!"
-    else
-        log_error "Failed to create release"
-        log_debug "Exit code: $?"
-        exit 1
-    fi
     
     # Upload EFI to release
     log_info "Uploading EFI to release..."
-    if gh release upload $version \
+    gh release upload $version \
         buildout/ipxe/$EFI_FILENAME_PREFIX-$version.efi \
         --clobber; then
         log_success "EFI uploaded successfully!"
-    else
-        log_error "Failed to upload EFI to release"
-        exit 1
-    fi
     
     log_success "Release process completed successfully!"
     log_info "Release URL: https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/$version"
