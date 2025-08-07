@@ -46,16 +46,21 @@ jobs:
           echo "Verifying custom chain command in EFI file:"
           strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || exit 1
 
+      - name: Get commit hash
+        id: commit_hash
+        run: |
+          echo "short_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
       - name: Rename EFI file
         run: |
-          cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios.efi
-          echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios.efi"
+          cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
+          echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi"
 
       - name: Upload EFI file as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: netboot.xyz-rampart-aios.efi
-          path: buildout/ipxe/netboot.xyz-rampart-aios.efi
+          name: netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
+          path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
           retention-days: 90
 
       - name: Set version
@@ -67,7 +72,7 @@ jobs:
             echo "version=v$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Release (Production Only)
+      - name: Create Release
         if: github.event.inputs.test_mode != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -78,11 +83,11 @@ jobs:
             --draft=false \
             --prerelease=false
 
-      - name: Upload EFI to Release (Production Only)
+      - name: Upload EFI to Release
         if: github.event.inputs.test_mode != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload ${{ steps.version.outputs.version }} \
-            buildout/ipxe/netboot.xyz-rampart-aios.efi \
+            buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi \
             --clobber 
