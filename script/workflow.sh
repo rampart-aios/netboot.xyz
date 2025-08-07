@@ -134,6 +134,12 @@ create_release() {
         exit 1
     fi
     
+    # Check GitHub token
+    if [ -z "$GH_TOKEN" ]; then
+        log_error "GH_TOKEN environment variable is not set"
+        exit 1
+    fi
+    
     log_info "Creating GitHub release..."
     log_debug "Version: $version"
     log_debug "Title: $title"
@@ -142,19 +148,32 @@ create_release() {
     
     # Create release
     log_info "Creating release..."
-    gh release create $version \
+    log_debug "Command: gh release create $version --title \"$title\" --notes \"$notes\" --draft=$draft --prerelease=$prerelease"
+    
+    if gh release create $version \
         --title "$title" \
         --notes "$notes" \
         --draft=$draft \
-        --prerelease=$prerelease
+        --prerelease=$prerelease; then
+        log_success "Release created successfully!"
+    else
+        log_error "Failed to create release"
+        log_debug "Exit code: $?"
+        exit 1
+    fi
     
     # Upload EFI to release
     log_info "Uploading EFI to release..."
-    gh release upload $version \
+    if gh release upload $version \
         buildout/ipxe/$EFI_FILENAME_PREFIX-$version.efi \
-        --clobber
+        --clobber; then
+        log_success "EFI uploaded successfully!"
+    else
+        log_error "Failed to upload EFI to release"
+        exit 1
+    fi
     
-    log_success "Release created successfully!"
+    log_success "Release process completed successfully!"
     log_info "Release URL: https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/$version"
 }
 
@@ -218,8 +237,16 @@ run_release_workflow() {
     log_info "Running release workflow (type: $version_type)..."
     
     # Get version
+    log_debug "Getting version for type: $version_type"
     local version_output=$(get_version $version_type)
-    local version=$(echo $version_output | grep "version=" | cut -d'=' -f2)
+    log_debug "Version output: $version_output"
+    local version=$(echo $version_output | grep "version=" | cut -d'=' -f2 || echo "")
+    log_debug "Extracted version: $version"
+    
+    if [ -z "$version" ]; then
+        log_error "Failed to extract version from output: $version_output"
+        exit 1
+    fi
     
     # Build EFI
     build_efi $version

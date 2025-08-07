@@ -3,8 +3,8 @@ name: Major Release Workflow
 on:
   # push:
   pull_request:
-    # branches: [development]
     branches: [local_dev]
+    # branches: [development]
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
