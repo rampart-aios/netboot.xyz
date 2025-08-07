@@ -1,86 +1,84 @@
 name: release
 
 on:
-  push:
+  # push:
+  pull_request:
     branches:
-      - master
-
-env:
-  DISCORD_HOOK_URL: ${{ secrets.DISCORD_HOOK_URL }}
-  GITHUB_SHA: ${{ github.sha }}
+      - local_dev
 
 jobs:
   release:
-    name: Build Release
+    name: Build EFI and Create Major Release
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: write
     steps:
     - uses: actions/checkout@v4
-      with:
-        ref: master
 
-    - name: Retrieve Certs
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build EFI bootloader
       run: |
-        ./script/retrieve_certs
+        docker build -t localbuild --platform=linux/amd64 -f Dockerfile .
+        docker run --rm -i --platform=linux/amd64 -v $(pwd):/buildout localbuild
+
+    - name: Get commit hash
+      id: commit_hash
+      run: |
+        echo "short_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Verify EFI content
+      run: |
+        echo "Generated EFI files:"
+        ls -la buildout/ipxe/netboot.xyz.efi
+        
+        echo "Verifying custom chain command in EFI file:"
+        strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || echo "Custom content not found (this is normal for standard builds)"
+
+    - name: Set version
+      id: version
+      run: |
+        # Get the latest major version from existing releases
+        LATEST_MAJOR=$(gh release list --limit 1000 | grep "v[1-9]" | head -1 | awk '{print $1}' | sed 's/v//')
+        
+        if [ -z "$LATEST_MAJOR" ]; then
+          # No existing major versions, start with v1.0.0
+          NEW_VERSION="1.0.0"
+        else
+          # Extract major number and increment
+          MAJOR=$(echo $LATEST_MAJOR | awk -F'.' '{print $1}')
+          NEW_MAJOR=$((MAJOR + 1))
+          NEW_VERSION="$NEW_MAJOR.0.0"
+        fi
+        
+        echo "version=v$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "Generated major version: v$NEW_VERSION"
+
+    - name: Rename EFI file
+      run: |
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi
+        echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi"
+
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi
+        retention-days: 90
+
+    - name: Create Release
       env:
-        GIT_USER: ${{ secrets.GIT_USER }}
-        GIT_AUTH: ${{ secrets.GIT_AUTH }}
-        GIT_URL: ${{ secrets.GIT_URL }}
-        CERTS_KEY: ${{ secrets.CERTS_KEY }}
-
-    - name: Set Release Tag
-      run: echo "release_tag=$(cat version.txt)" >> $GITHUB_ENV
-
-    - name: Build release
+        GH_TOKEN: ${{ github.token }}
       run: |
-        ./script/build_release release
+        gh release create ${{ steps.version.outputs.version }} \
+          --title "EFI Bootloader ${{ steps.version.outputs.version }}" \
+          --notes "Release of Rampart-AIOS EFI bootloader" \
+          --draft=false \
+          --prerelease=false
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_PROD }}
-        aws-region: ${{ secrets.AWS_ACCESS_REGION }}
-
-    - name: Deploy master to release bucket
+    - name: Upload EFI to Release
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
-        aws s3 sync --no-progress --acl public-read s3out s3://${{ secrets.AWS_S3_BUCKET_PROD }}/${{ env.release_tag }}
-
-    - name: Deploy master to rolling bucket
-      run: |
-        aws s3 sync --no-progress --acl public-read s3out-latest s3://${{ secrets.AWS_S3_BUCKET_PROD }}
-
-    - name: Invalidate Cloudfront
-      run: |
-        aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID_PROD }} --paths "/*" "/ipxe/*" "/sigs/*"
-
-    - name: Tag Release
-      run: |
-        ./script/tag ${{ env.release_tag }}
-
-    - name: Extract release notes
-      id: extract-release-notes
-      uses: ffurrer2/extract-release-notes@v2
-
-    - name: Create Release and Upload Assets
-      uses: svenstaro/upload-release-action@v2
-      with:
-        file: githubout/*
-        file_glob: true
-        overwrite: true
-        prerelease: false
-        release_name: ${{ env.release_tag }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        tag: ${{ env.release_tag }}
-        body: ${{ steps.extract-release-notes.outputs.release_notes }}
-
-    - name: Notify Discord on failure
-      if: failure()
-      run: |
-        ./script/message failure
-
-    - name: Notify Discord on completion
-      if: success()
-      run: |
-        ./script/message live-push
+        gh release upload ${{ steps.version.outputs.version }} \
+          buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi \
+          --clobber

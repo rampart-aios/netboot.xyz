@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-ipxe-efi:
-    name: Build iPXE bootloader for EFI
+    name: Build EFI and Create Minor Release
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -34,18 +34,6 @@ jobs:
         echo "Verifying custom chain command in EFI file:"
         strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || echo "Custom content not found (this is normal for standard builds)"
 
-    - name: Rename EFI file
-      run: |
-        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
-        echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi"
-
-    - name: Upload EFI file as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
-        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi
-        retention-days: 90
-
     - name: Set version
       id: version
       run: |
@@ -65,6 +53,18 @@ jobs:
         echo "version=v$NEW_VERSION" >> $GITHUB_OUTPUT
         echo "Generated minor version: v$NEW_VERSION"
 
+    - name: Rename EFI file
+      run: |
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi
+        echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi"
+
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi
+        retention-days: 90
+
     - name: Create Draft Release
       env:
         GH_TOKEN: ${{ github.token }}
@@ -75,10 +75,10 @@ jobs:
           --draft=true \
           --prerelease=true
 
-    - name: Upload EFI to Development Release
+    - name: Upload EFI to Draft Release
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         gh release upload ${{ steps.version.outputs.version }} \
-          buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.commit_hash.outputs.short_hash }}.efi \
+          buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.version.outputs.version }}.efi \
           --clobber

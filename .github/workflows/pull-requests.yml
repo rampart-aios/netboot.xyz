@@ -32,7 +32,7 @@ jobs:
         ansible-lint -v roles/netbootxyz/tasks
 
   build-ipxe-efi:
-    name: Build iPXE bootloader for EFI
+    name: Build EFI for Pull Request
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
