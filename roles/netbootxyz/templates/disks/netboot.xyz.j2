@@ -1,15 +1,41 @@
 #!ipxe
+
+# =============================================================================
+# Ubuntu Installer Configuration
+# =============================================================================
+set mirror https://releases.ubuntu.com
+set base_dir ubuntu
+set codename noble
+set version 24.04.2
+set os_arch amd64
+set department ro
+set machine ws006964
+set ubuntu_message Starting Ubuntu ${version} installer...
+set ramdisk_size 3500000
+
+# Build URLs from variables
+set kernel_url ${mirror}/${codename}/netboot/${os_arch}
+set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
+set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
+
+# =============================================================================
+# iPXE Configuration
+# =============================================================================
 set esc:hex 1b
 set bold ${esc:string}[1m
 set boldoff ${esc:string}[22m
 set fg_gre ${esc:string}[32m
 set fg_cya ${esc:string}[36m
 set fg_whi ${esc:string}[37m
+
+# Error messages
 set VARS_ERR Local vars file not found... attempting TFTP boot...
 set TFTP_ERR Local TFTP failed... attempting remote HTTPS
 set V6_ERR IPv6 appears to have failed... attempting IPv4...
 set HTTPS_ERR HTTPS appears to have failed... attempting HTTP
 set HTTP_ERR HTTP has failed, localbooting...
+
+# Site configuration
 set site_name {{ site_name }}
 set boot_domain {{ boot_domain }}
 set ipxe_version ${version}
@@ -17,11 +43,17 @@ set version {{ boot_version }}
 set conn_type https
 set tftp-root-path /
 
+# =============================================================================
+# Main Boot Entry Point
+# =============================================================================
 :start
 echo ${bold}${fg_gre}${site_name} - ${fg_whi}v${version}${boldoff}
 iseq ${site_name} netboot.xyz || echo ${bold}${fg_whi}Powered by ${fg_gre}netboot.xyz${fg_whi}${boldoff}
 prompt --key m --timeout 4000 Hit the ${bold}m${boldoff} key to open failsafe menu... && goto failsafe || goto dhcp
 
+# =============================================================================
+# Network Configuration
+# =============================================================================
 :dhcp
 echo
 dhcp || goto netconfig
@@ -44,6 +76,9 @@ goto load-custom-ipxe
 # This ensures the chain command always executes regardless of filename
 goto tftpmenu
 
+# =============================================================================
+# Failsafe Menu
+# =============================================================================
 :failsafe
 menu ${boot_domain} Failsafe Menu
 item localboot Boot to local drive
@@ -92,22 +127,38 @@ ifopen net${net}-${vlan}
 echo Attempting chainload of ${boot_domain}...
 goto menu || goto failsafe
 
+# =============================================================================
+# Ubuntu Installer Boot Section
+# =============================================================================
 :tftpmenu
 echo Loading custom netboot.xyz.efi...
-echo Chaining to autoinstall script...
-echo Attempting to chain to autoinstall script...
-chain https://rampart-aios.github.io/autoinstall/ipxe/ws006964.ipxe || echo HTTPS chain failed, attempting HTTP...
-chain http://rampart-aios.github.io/autoinstall/ipxe/ws006964.ipxe || echo Chain failed, booting local...
-goto localboot
+goto ubuntu-installer
 
 :menu
 echo Loading custom netboot.xyz.efi...
-echo Chaining to autoinstall script...
-echo Attempting to chain to autoinstall script...
-chain https://rampart-aios.github.io/autoinstall/ipxe/ws006964.ipxe || echo HTTPS chain failed, attempting HTTP...
-chain http://rampart-aios.github.io/autoinstall/ipxe/ws006964.ipxe || echo Chain failed, booting local...
-goto localboot
+goto ubuntu-installer
 
+:ubuntu-installer
+# Display boot information
+echo ${ubuntu_message}
+echo Kernel URL: ${kernel_url}
+echo Autoinstall URL: ${autoinstall_url}
+
+# Boot Ubuntu installer
+imgfree
+kernel ${kernel_url}/linux \
+    root=/dev/ram0 \
+    ramdisk_size=${ramdisk_size} \
+    cloud-config-url=/dev/null \
+    ip=dhcp url=${ubuntu_iso_url} \
+    autoinstall ds=nocloud-net;s=${autoinstall_url}/ \
+    initrd=initrd.magic
+initrd ${kernel_url}/initrd
+boot
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
 :localboot
 exit
 
