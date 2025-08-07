@@ -1,29 +1,60 @@
 name: development
 
 on:
-  # push:
-  pull_request:
+  push:
     branches:
-      - local_dev
-    # branches:
-    #   - development
+      - development
+  workflow_dispatch:
+
+env:
+  DISCORD_HOOK_URL: ${{ secrets.DISCORD_HOOK_URL }}
+  GITHUB_SHA: ${{ github.sha }}
 
 jobs:
-  minor-release:
-    name: Create Minor Release
+  development-build:
+    name: Build Development
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
     - uses: actions/checkout@v4
-
-    - name: Run minor release workflow
-      id: release_workflow
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: source ./script/workflow.sh && run_release_workflow minor
-
-    - name: Upload EFI file as artifact
-      uses: actions/upload-artifact@v4
       with:
-        name: netboot.xyz-rampart-aios-${{ steps.release_workflow.outputs.version }}.efi
-        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.release_workflow.outputs.version }}.efi
-        retention-days: 90
+        ref: development
+
+    - name: Retrieve Certs
+      run: |
+        ./script/retrieve_certs
+      env:
+        GIT_USER: ${{ secrets.GIT_USER }}
+        GIT_AUTH: ${{ secrets.GIT_AUTH }}
+        GIT_URL: ${{ secrets.GIT_URL }}
+        CERTS_KEY: ${{ secrets.CERTS_KEY }}
+
+    - name: Build Development Release
+      run: |
+        ./script/build_release dev
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_DEV }}
+        aws-region: ${{ secrets.AWS_ACCESS_REGION }}
+
+    - name: Deploy development release to bucket/SHA
+      run: |
+        aws s3 sync --no-progress --acl public-read s3out s3://${{ secrets.AWS_S3_BUCKET_DEV }}/$GITHUB_SHA
+
+    - name: Deploy development version file to bucket
+      run: |
+        aws s3 sync --no-progress --acl public-read s3outver s3://${{ secrets.AWS_S3_BUCKET_DEV }}
+
+    - name: Notify Discord on failure
+      if: failure()
+      run: |
+        ./script/message failure
+
+    - name: Notify Discord on completion
+      if: success()
+      run: |
+        ./script/message dev-push
