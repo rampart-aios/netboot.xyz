@@ -1,0 +1,44 @@
+name: 'Create GitHub Release'
+description: 'Creates GitHub release with EFI upload'
+
+inputs:
+  version:
+    description: 'Version for the release'
+    required: true
+  title:
+    description: 'Release title'
+    required: true
+  notes:
+    description: 'Release notes'
+    required: true
+  draft:
+    description: 'Whether to create as draft'
+    required: false
+    default: 'false'
+  prerelease:
+    description: 'Whether to create as prerelease'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        gh release create ${{ inputs.version }} \
+          --title "${{ inputs.title }}" \
+          --notes "${{ inputs.notes }}" \
+          --draft=${{ inputs.draft }} \
+          --prerelease=${{ inputs.prerelease }}
+
+    - name: Upload EFI to Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        gh release upload ${{ inputs.version }} \
+          buildout/ipxe/netboot.xyz-rampart-aios-${{ inputs.version }}.efi \
+          --clobber 

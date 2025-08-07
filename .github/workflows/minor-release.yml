@@ -1,0 +1,35 @@
+name: development
+
+on:
+  # push:
+  pull_request:
+    branches:
+      - local_dev
+
+jobs:
+  minor-release:
+    name: Create Minor Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Manage version
+      id: version-manager
+      uses: ./.github/actions/version-manager
+      with:
+        version-type: 'minor'
+
+    - name: Build EFI bootloader
+      uses: ./.github/actions/build-efi
+      with:
+        version: ${{ steps.version-manager.outputs.version }}
+        verify-content: 'true'
+
+    - name: Create draft release
+      uses: ./.github/actions/create-release
+      with:
+        version: ${{ steps.version-manager.outputs.version }}
+        title: ${{ steps.version-manager.outputs.version }}
+        notes: "Draft Release of Rampart-AIOS iPXE EFI bootloader"
+        draft: 'true'
+        prerelease: 'true'

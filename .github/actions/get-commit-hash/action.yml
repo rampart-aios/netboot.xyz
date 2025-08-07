@@ -1,0 +1,16 @@
+name: 'Get Commit Hash'
+description: 'Gets the short commit hash for file naming'
+
+outputs:
+  short_hash:
+    description: 'Short commit hash'
+    value: ${{ steps.commit_hash.outputs.short_hash }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get commit hash
+      id: commit_hash
+      shell: bash
+      run: |
+        echo "short_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT 

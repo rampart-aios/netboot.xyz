@@ -1,0 +1,37 @@
+name: release
+
+on:
+  # push:
+  pull_request:
+    branches:
+      - local_dev
+    # branches:
+    #   - development
+
+jobs:
+  major-release:
+    name: Create Major Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Manage version
+      id: version-manager
+      uses: ./.github/actions/version-manager
+      with:
+        version-type: 'major'
+
+    - name: Build EFI bootloader
+      uses: ./.github/actions/build-efi
+      with:
+        version: ${{ steps.version-manager.outputs.version }}
+        verify-content: 'true'
+
+    - name: Create release
+      uses: ./.github/actions/create-release
+      with:
+        version: ${{ steps.version-manager.outputs.version }}
+        title: ${{ steps.version-manager.outputs.version }}
+        notes: "Release of Rampart-AIOS iPXE EFI bootloader"
+        draft: 'false'
+        prerelease: 'false'

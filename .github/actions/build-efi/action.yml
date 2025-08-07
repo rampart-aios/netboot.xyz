@@ -1,0 +1,46 @@
+name: 'Build EFI Bootloader'
+description: 'Builds custom EFI bootloader using Docker'
+
+inputs:
+  version:
+    description: 'Version to use for file naming'
+    required: true
+  verify-content:
+    description: 'Whether to verify custom content'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build EFI bootloader
+      shell: bash
+      run: |
+        docker build -t localbuild --platform=linux/amd64 -f Dockerfile .
+        docker run --rm -i --platform=linux/amd64 -v $(pwd):/buildout localbuild
+
+    - name: Verify EFI content
+      if: inputs.verify-content == 'true'
+      shell: bash
+      run: |
+        echo "Generated EFI files:"
+        ls -la buildout/ipxe/netboot.xyz.efi
+        
+        echo "Verifying custom chain command in EFI file:"
+        strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || echo "Custom content not found (this is normal for standard builds)"
+
+    - name: Rename EFI file
+      shell: bash
+      run: |
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/netboot.xyz-rampart-aios-${{ inputs.version }}.efi
+        echo "Renamed netboot.xyz.efi to netboot.xyz-rampart-aios-${{ inputs.version }}.efi"
+
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: netboot.xyz-rampart-aios-${{ inputs.version }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ inputs.version }}.efi
+        retention-days: 90 
