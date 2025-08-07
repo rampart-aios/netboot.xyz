@@ -36,7 +36,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Run PR workflow
       id: pr_workflow
-      run: source ./script/workflow.sh && run_pr_workflow
+      run: |
+        source ./script/workflow.sh
+        output=$(run_pr_workflow)
+        echo "$output"
+        echo "version=$(echo "$output" | grep "version=" | tail -1 | cut -d'=' -f2)" >> $GITHUB_OUTPUT
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
