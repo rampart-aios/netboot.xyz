@@ -47,57 +47,17 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Get short commit hash
-        id: commit_hash
-        run: echo "short_hash=$(echo ${{ env.COMMIT_HASH }} | cut -c1-7)" >> $GITHUB_OUTPUT
-
       - name: Build EFI bootloader
-        run: |
-          docker build -t localbuild --platform=${{ env.DOCKER_PLATFORM }} -f Dockerfile .
-          docker run --rm -i --platform=${{ env.DOCKER_PLATFORM }} -v $(pwd):/buildout localbuild
-
-      - name: Verify build output
-        run: |
-          if [ ! -f "buildout/ipxe/netboot.xyz.efi" ]; then
-            echo "ERROR: EFI file not found after build"
-            exit 1
-          fi
-          echo "EFI build completed successfully"
-
-      - name: Display build information
-        run: |
-          echo "=== Build Information ==="
-          echo "Generated EFI files:"
-          ls -la buildout/ipxe/
-          
-          echo "=== EFI File Details ==="
-          file buildout/ipxe/netboot.xyz.efi
-          
-          echo "=== EFI Size ==="
-          du -h buildout/ipxe/netboot.xyz.efi
-
-      - name: Verify EFI content
-        run: |
-          echo "=== EFI Content Verification ==="
-          strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || echo "INFO: Custom content not found (this is normal for standard builds)"
-
-      - name: Rename EFI file
-        run: |
-          cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
-          echo "Renamed EFI file to ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi"
-          
-          # Verify renamed file
-          if [ ! -f "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi" ]; then
-            echo "ERROR: Renamed EFI file not found"
-            exit 1
-          fi
-          
-          echo "Renamed file verified:"
-          ls -la buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
+        env:
+          EFI_FILENAME_PREFIX: ${{ env.EFI_FILENAME_PREFIX }}
+          DOCKER_PLATFORM: ${{ env.DOCKER_PLATFORM }}
+          COMMIT_HASH: ${{ env.COMMIT_HASH }}
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: ./script/build_efi.sh
 
       - name: Upload EFI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
-          path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
+          name: ${{ env.EFI_FILENAME_PREFIX }}-${{ github.head_ref }}-$(echo ${{ env.COMMIT_HASH }} | cut -c1-7).efi
+          path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-$(echo ${{ github.head_ref }} | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/\/-/-/g')-$(echo ${{ env.COMMIT_HASH }} | cut -c1-7).efi
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
