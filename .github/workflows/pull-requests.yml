@@ -6,8 +6,9 @@ on:
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
-  ARTIFACT_RETENTION_DAYS: 90
   DOCKER_PLATFORM: 'linux/amd64'
+  ARTIFACT_RETENTION_DAYS: 90
+  COMMIT_HASH: ${{ github.sha }}
 
 jobs:
   test-pr:
@@ -44,9 +45,9 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Get commit hash
+      - name: Get short commit hash
         id: commit_hash
-        run: echo "short_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "short_hash=$(echo ${{ env.COMMIT_HASH }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
       - name: Build EFI bootloader
         run: |
