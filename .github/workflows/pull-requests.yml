@@ -3,6 +3,8 @@ name: pull-requests
 on:
   pull_request:
     branches: ['**']
+  push:
+    branches: ['**']
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
