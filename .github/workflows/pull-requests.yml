@@ -2,10 +2,12 @@ name: pull-requests
 
 on:
   pull_request:
-    branches:
-      - development
-      - RC
-      - master
+    branches: ['**']
+
+env:
+  EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
+  ARTIFACT_RETENTION_DAYS: 90
+  DOCKER_PLATFORM: 'linux/amd64'
 
 jobs:
   test-pr:
@@ -33,13 +35,66 @@ jobs:
         ansible-lint -v roles/netbootxyz/tasks
 
   build-pr:
-    name: Build Pull Request
+    name: Build EFI Bootloader
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v5
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build PR release
-      run: |
-        ./script/build_release pr
+      - name: Get commit hash
+        id: commit_hash
+        run: echo "short_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build EFI bootloader
+        run: |
+          docker build -t localbuild --platform=${{ env.DOCKER_PLATFORM }} -f Dockerfile .
+          docker run --rm -i --platform=${{ env.DOCKER_PLATFORM }} -v $(pwd):/buildout localbuild
+
+      - name: Verify build output
+        run: |
+          if [ ! -f "buildout/ipxe/netboot.xyz.efi" ]; then
+            echo "ERROR: EFI file not found after build"
+            exit 1
+          fi
+          echo "EFI build completed successfully"
+
+      - name: Display build information
+        run: |
+          echo "=== Build Information ==="
+          echo "Generated EFI files:"
+          ls -la buildout/ipxe/
+          
+          echo "=== EFI File Details ==="
+          file buildout/ipxe/netboot.xyz.efi
+          
+          echo "=== EFI Size ==="
+          du -h buildout/ipxe/netboot.xyz.efi
+
+      - name: Verify EFI content
+        run: |
+          echo "=== EFI Content Verification ==="
+          strings ./buildout/ipxe/netboot.xyz.efi | grep -i "rampart-aios" || echo "INFO: Custom content not found (this is normal for standard builds)"
+
+      - name: Rename EFI file
+        run: |
+          cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
+          echo "Renamed EFI file to ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi"
+          
+          # Verify renamed file
+          if [ ! -f "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi" ]; then
+            echo "ERROR: Renamed EFI file not found"
+            exit 1
+          fi
+          
+          echo "Renamed file verified:"
+          ls -la buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
+
+      - name: Upload EFI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
+          path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.commit_hash.outputs.short_hash }}.efi
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
