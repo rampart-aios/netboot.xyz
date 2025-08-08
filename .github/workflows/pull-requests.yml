@@ -1,4 +1,4 @@
-name: pull-requests
+name: test-and-build
 
 on:
   pull_request:
@@ -13,8 +13,8 @@ env:
   COMMIT_HASH: ${{ github.sha }}
 
 jobs:
-  test-pr:
-    name: Test Pull Request
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
       run: |
         ansible-lint -v roles/netbootxyz/tasks
 
-  build-pr:
+  build:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
     steps:
