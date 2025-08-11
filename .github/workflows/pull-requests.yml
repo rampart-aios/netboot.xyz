@@ -8,9 +8,7 @@ on:
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
-  DOCKER_PLATFORM: 'linux/amd64'
   ARTIFACT_RETENTION_DAYS: 90
-  COMMIT_HASH: ${{ github.sha }}
 
 jobs:
   test:
@@ -37,27 +35,22 @@ jobs:
       run: |
         ansible-lint -v roles/netbootxyz/tasks
 
-  build:
+  build-pr:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
+    needs: test
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build EFI bootloader
-        env:
-          EFI_FILENAME_PREFIX: ${{ env.EFI_FILENAME_PREFIX }}
-          DOCKER_PLATFORM: ${{ env.DOCKER_PLATFORM }}
-          COMMIT_HASH: ${{ env.COMMIT_HASH }}
-          BRANCH_NAME: ${{ github.head_ref }}
-        run: ./script/build_efi.sh
-
-      - name: Upload EFI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.EFI_FILENAME_PREFIX }}-${{ github.head_ref }}-$(echo ${{ env.COMMIT_HASH }} | cut -c1-7).efi
-          path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-$(echo ${{ github.head_ref }} | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/\/-/-/g')-$(echo ${{ env.COMMIT_HASH }} | cut -c1-7).efi
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+    - uses: actions/checkout@v4
+    - name: Run PR workflow
+      id: pr_workflow
+      run: |
+        source ./script/workflow.sh
+        output=$(run_pr_workflow)
+        echo "$output"
+        echo "version=$(echo "$output" | grep "version=" | tail -1 | cut -d'=' -f2)" >> $GITHUB_OUTPUT
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+        name: netboot.xyz-rampart-aios-${{ steps.pr_workflow.outputs.version }}.efi
+        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.pr_workflow.outputs.version }}.efi 
