@@ -9,7 +9,7 @@ env:
   ARTIFACT_RETENTION_DAYS: 90
 
 jobs:
-  build:
+  build-release:
     name: Build and Release for local_dev
     runs-on: ubuntu-latest
     steps:

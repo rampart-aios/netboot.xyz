@@ -75,10 +75,10 @@ get_version() {
             # No existing local_main versions, start with v1.0.0
             local new_version="1.0.0"
         else
-            # Extract major number and increment
-            local major=$(echo $latest_local_main | awk -F'.' '{print $1}')
-            local new_major=$((major + 1))
-            local new_version="$new_major.0.0"
+        # Extract local_main number and increment
+        local local_main_num=$(echo $latest_local_main | awk -F'.' '{print $1}')
+        local new_local_main=$((local_main_num + 1))
+        local new_version="$new_local_main.0.0"
         fi
         
         echo "version=v$new_version"
