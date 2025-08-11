@@ -15,6 +15,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
 
@@ -37,8 +38,9 @@ jobs:
         ansible-lint -v roles/netbootxyz/tasks
 
   build:
-    name: Build
+    name: "Build EFI Bootloader"
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
     - uses: actions/checkout@v4
     
@@ -75,5 +77,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.branch_name }}-${{ steps.get_commit.outputs.version }}.efi
+        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.branch_name }}-${{ steps.get_commit.outputs.commit_hash }}.efi
         path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.branch_name }}-${{ steps.get_commit.outputs.commit_hash }}.efi 

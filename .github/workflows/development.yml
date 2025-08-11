@@ -2,21 +2,25 @@ name: release_local_dev
 
 on:
   push:
-    branches: [feat-efi-pipeline]
+    branches: [local_dev]
 
 env:
+  SOURCE_BRANCH: "feat-efi-pipeline"
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
-  ARTIFACT_RETENTION_DAYS: 90
   DOCKER_IMAGE: "localbuild"
   RELEASE_NOTES: "Draft Release of Rampart-AIOS iPXE EFI bootloader"
   RELEASE_DRAFT: "true"
   RELEASE_PRERELEASE: "true"
   VERSION_PREFIX: "v0"
+  
+  ARTIFACT_RETENTION_DAYS: 90
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   get-version:
-    name: Get Version
+    name: "Get Version"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.get_version.outputs.version }}
     steps:
@@ -24,8 +28,6 @@ jobs:
     
     - name: Get local_dev version
       id: get_version
-      env:
-        GH_TOKEN: ${{ github.token }}
       run: |
         # Get the latest local_dev version from existing releases
         latest_version=$(gh release list --limit 1000 | grep "${{ env.VERSION_PREFIX }}\." | head -1 | awk '{print $1}' | sed 's/v//')
@@ -44,51 +46,51 @@ jobs:
         echo "version=v$new_version" >> $GITHUB_OUTPUT
 
   download-efi:
-    name: Download EFI Artifact
+    name: "Download EFI Artifact"
     needs: get-version
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
     
-    - name: Get current branch
-      id: get_branch
+    - name: Download EFI artifact from feat-efi-pipeline branch
       run: |
-        branch_name=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9]/-/g')
-        echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
-        echo "Current branch: $branch_name"
-    
-    - name: Download EFI artifact from latest workflow run
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_branch.outputs.branch_name }}-*
-        path: buildout/ipxe/
+        set -e
+        echo "Finding latest successful run for workflow 'test_and_build' on branch '${{ env.SOURCE_BRANCH }}'..."
+        run_id=$(gh run list --workflow test_and_build --branch "${{ env.SOURCE_BRANCH }}" --status success --json databaseId -q '.[0].databaseId')
+        if [ -z "$run_id" ]; then
+          echo "No successful runs found for branch '${{ env.SOURCE_BRANCH }}'."; exit 1
+        fi
+        echo "Downloading artifacts from run ID: $run_id"
+        gh run download "$run_id" -p "${{ env.EFI_FILENAME_PREFIX }}-${{ env.SOURCE_BRANCH }}-*.efi" -D buildout/ipxe/
     
     - name: List downloaded artifacts
       run: |
         echo "Downloaded artifacts:"
         ls -la buildout/ipxe/
     
-    - name: Rename EFI to version-specific name
+    - name: Rename EFI to local_dev format
       run: |
-        # Find the downloaded EFI file and rename it
-        efi_file=$(find buildout/ipxe/ -name "${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_branch.outputs.branch_name }}-*.efi" | head -1)
+        # Find the downloaded EFI file and rename it to local_dev format
+        efi_file=$(find buildout/ipxe/ -name "${{ env.EFI_FILENAME_PREFIX }}-${{ env.SOURCE_BRANCH }}-*.efi" | head -1)
         if [ -n "$efi_file" ]; then
-          cp "$efi_file" "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi"
-          echo "Renamed to ${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi"
+          local_dev_filename="${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi"
+          cp "$efi_file" "buildout/ipxe/$local_dev_filename"
+          echo "Renamed to $local_dev_filename"
         else
-          echo "Error: No EFI artifact found for branch ${{ steps.get_branch.outputs.branch_name }}"
+          echo "Error: No EFI artifact found for branch ${{ env.SOURCE_BRANCH }}"
           exit 1
         fi
 
   create-release:
+    name: "Create Draft Release"
     needs: [get-version, download-efi]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
     
     - name: Create draft release
-      env:
-        GH_TOKEN: ${{ github.token }}
       run: |
         gh release create ${{ needs.get-version.outputs.version }} \
           --title "${{ needs.get-version.outputs.version }}" \
@@ -97,22 +99,22 @@ jobs:
           --prerelease=${{ env.RELEASE_PRERELEASE }}
     
     - name: Upload EFI to release
-      env:
-        GH_TOKEN: ${{ github.token }}
       run: |
         gh release upload ${{ needs.get-version.outputs.version }} \
-          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi \
+          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi \
           --clobber
 
   upload-artifact:
+    name: "Upload Versioned Artifact"
     needs: [get-version, download-efi]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
     - uses: actions/checkout@v4
     
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi
-        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi
+        name: ${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi
+        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 
