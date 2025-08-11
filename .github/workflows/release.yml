@@ -2,7 +2,7 @@ name: release_local_main
 
 on:
   push:
-    branches: [local_main]
+    branches: [local_main, feat-efi-pipeline]
 
 env:
   SOURCE_BRANCH: "feat-efi-pipeline"
