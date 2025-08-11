@@ -1,4 +1,4 @@
-name: local_dev
+name: release_local_dev
 
 on:
   push:
@@ -14,9 +14,11 @@ env:
   VERSION_PREFIX: "v0"
 
 jobs:
-  build-release:
-    name: Build and Release for local_dev
+  get-version:
+    name: Get Version
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     steps:
     - uses: actions/checkout@v4
     
@@ -40,30 +42,56 @@ jobs:
         
         echo "version=v$new_version"
         echo "version=v$new_version" >> $GITHUB_OUTPUT
+
+  download-efi:
+    name: Download EFI Artifact
+    needs: get-version
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
     
-    - name: Build EFI bootloader
-      id: build_efi
+    - name: Get current branch
+      id: get_branch
       run: |
-        echo "Building EFI bootloader version: ${{ steps.get_version.outputs.version }}"
-        
-        # Build EFI bootloader
-        docker build -t ${{ env.DOCKER_IMAGE }} -f Dockerfile .
-        docker run --rm -i -v $(pwd):/buildout ${{ env.DOCKER_IMAGE }}
-        
-        # Verify EFI content
-        echo "Verifying EFI content..."
-        ls -la buildout/ipxe/netboot.xyz.efi
-        
-        # Rename EFI file
-        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi
-        echo "Renamed to ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi"
+        branch_name=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9]/-/g')
+        echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+        echo "Current branch: $branch_name"
+    
+    - name: Download EFI artifact from latest workflow run
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_branch.outputs.branch_name }}-*
+        path: buildout/ipxe/
+    
+    - name: List downloaded artifacts
+      run: |
+        echo "Downloaded artifacts:"
+        ls -la buildout/ipxe/
+    
+    - name: Rename EFI to version-specific name
+      run: |
+        # Find the downloaded EFI file and rename it
+        efi_file=$(find buildout/ipxe/ -name "${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_branch.outputs.branch_name }}-*.efi" | head -1)
+        if [ -n "$efi_file" ]; then
+          cp "$efi_file" "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi"
+          echo "Renamed to ${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi"
+        else
+          echo "Error: No EFI artifact found for branch ${{ steps.get_branch.outputs.branch_name }}"
+          exit 1
+        fi
+
+  create-release:
+    needs: [get-version, download-efi]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
     
     - name: Create draft release
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh release create ${{ steps.get_version.outputs.version }} \
-          --title "${{ steps.get_version.outputs.version }}" \
+        gh release create ${{ needs.get-version.outputs.version }} \
+          --title "${{ needs.get-version.outputs.version }}" \
           --notes "${{ env.RELEASE_NOTES }}" \
           --draft=${{ env.RELEASE_DRAFT }} \
           --prerelease=${{ env.RELEASE_PRERELEASE }}
@@ -72,13 +100,19 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh release upload ${{ steps.get_version.outputs.version }} \
-          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi \
+        gh release upload ${{ needs.get-version.outputs.version }} \
+          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi \
           --clobber
+
+  upload-artifact:
+    needs: [get-version, download-efi]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
     
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi
-        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi
+        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi
+        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ needs.get-version.outputs.version }}.efi
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 

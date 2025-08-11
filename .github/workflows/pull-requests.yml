@@ -1,4 +1,4 @@
-name: test-and-build
+name: test_and_build
 
 on:
   pull_request:
@@ -42,17 +42,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Get commit hash
+    - name: Get commit hash and branch
       id: get_commit
       run: |
         commit_hash=$(git rev-parse --short HEAD)
+        branch_name=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9]/-/g')
         echo "commit_hash=$commit_hash" >> $GITHUB_OUTPUT
-        echo "Building for commit: $commit_hash"
+        echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+        echo "Building for branch: $branch_name, commit: $commit_hash"
     
     - name: Build EFI Bootloader
       id: build
       run: |
-        echo "Building EFI bootloader for commit: ${{ steps.get_commit.outputs.commit_hash }}"
+        echo "Building EFI bootloader for branch: ${{ steps.get_commit.outputs.branch_name }}, commit: ${{ steps.get_commit.outputs.commit_hash }}"
         
         # Build EFI bootloader
         docker build -t ${{ env.DOCKER_IMAGE }} -f Dockerfile .
@@ -62,9 +64,10 @@ jobs:
         echo "Verifying EFI content..."
         ls -la buildout/ipxe/netboot.xyz.efi
         
-        # Rename EFI file
-        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.commit_hash }}.efi
-        echo "Renamed to ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.commit_hash }}.efi"
+        # Rename EFI file with branch and commit
+        efi_filename="${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.branch_name }}-${{ steps.get_commit.outputs.commit_hash }}.efi"
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/$efi_filename
+        echo "Renamed to $efi_filename"
         
         echo "version=${{ steps.get_commit.outputs.commit_hash }}" >> $GITHUB_OUTPUT
     
@@ -72,5 +75,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.build.outputs.version }}.efi
-        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.build.outputs.version }}.efi 
+        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.branch_name }}-${{ steps.get_commit.outputs.version }}.efi
+        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.branch_name }}-${{ steps.get_commit.outputs.commit_hash }}.efi 
