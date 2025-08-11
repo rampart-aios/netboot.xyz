@@ -9,6 +9,7 @@ on:
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
   ARTIFACT_RETENTION_DAYS: 90
+  DOCKER_IMAGE: "localbuild"
 
 jobs:
   test:
@@ -40,16 +41,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Get commit hash
+      id: get_commit
+      run: |
+        commit_hash=$(git rev-parse --short HEAD)
+        echo "commit_hash=$commit_hash" >> $GITHUB_OUTPUT
+        echo "Building for commit: $commit_hash"
+    
     - name: Build EFI Bootloader
       id: build
       run: |
-        source ./script/workflow.sh
-        output=$(run_build)
-        echo "$output"
-        echo "version=$(echo "$output" | grep "version=" | tail -1 | cut -d'=' -f2)" >> $GITHUB_OUTPUT
+        echo "Building EFI bootloader for commit: ${{ steps.get_commit.outputs.commit_hash }}"
+        
+        # Build EFI bootloader
+        docker build -t ${{ env.DOCKER_IMAGE }} -f Dockerfile .
+        docker run --rm -i -v $(pwd):/buildout ${{ env.DOCKER_IMAGE }}
+        
+        # Verify EFI content
+        echo "Verifying EFI content..."
+        ls -la buildout/ipxe/netboot.xyz.efi
+        
+        # Rename EFI file
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.commit_hash }}.efi
+        echo "Renamed to ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.commit_hash }}.efi"
+        
+        echo "version=${{ steps.get_commit.outputs.commit_hash }}" >> $GITHUB_OUTPUT
+    
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-        name: netboot.xyz-rampart-aios-${{ steps.build.outputs.version }}.efi
-        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.build.outputs.version }}.efi 
+        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.build.outputs.version }}.efi
+        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.build.outputs.version }}.efi 

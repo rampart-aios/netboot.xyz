@@ -7,6 +7,11 @@ on:
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
   ARTIFACT_RETENTION_DAYS: 90
+  DOCKER_IMAGE: "localbuild"
+  RELEASE_NOTES: "Release of Rampart-AIOS iPXE EFI bootloader"
+  RELEASE_DRAFT: "false"
+  RELEASE_PRERELEASE: "false"
+  VERSION_PREFIX: "v[1-9]"
 
 jobs:
   build-release:
@@ -14,18 +19,66 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Run local_main release workflow
-      id: build_local_main
+    
+    - name: Get local_main version
+      id: get_version
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        source ./script/workflow.sh
-        output=$(run_build_local_dev local_main)
-        echo "$output"
-        echo "version=$(echo "$output" | grep "version=" | tail -1 | cut -d'=' -f2)" >> $GITHUB_OUTPUT
+        # Get the latest local_main version from existing releases
+        latest_version=$(gh release list --limit 1000 | grep "${{ env.VERSION_PREFIX }}" | head -1 | awk '{print $1}' | sed 's/v//')
+        
+        if [ -z "$latest_version" ]; then
+          # No existing local_main versions, start with v1.0.0
+          new_version="1.0.0"
+        else
+          # Extract major number and increment
+          major=$(echo $latest_version | awk -F'.' '{print $1}')
+          new_major=$((major + 1))
+          new_version="$new_major.0.0"
+        fi
+        
+        echo "version=v$new_version"
+        echo "version=v$new_version" >> $GITHUB_OUTPUT
+    
+    - name: Build EFI bootloader
+      id: build_efi
+      run: |
+        echo "Building EFI bootloader version: ${{ steps.get_version.outputs.version }}"
+        
+        # Build EFI bootloader
+        docker build -t ${{ env.DOCKER_IMAGE }} -f Dockerfile .
+        docker run --rm -i -v $(pwd):/buildout ${{ env.DOCKER_IMAGE }}
+        
+        # Verify EFI content
+        echo "Verifying EFI content..."
+        ls -la buildout/ipxe/netboot.xyz.efi
+        
+        # Rename EFI file
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi
+        echo "Renamed to ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi"
+    
+    - name: Create production release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release create ${{ steps.get_version.outputs.version }} \
+          --title "${{ steps.get_version.outputs.version }}" \
+          --notes "${{ env.RELEASE_NOTES }}" \
+          --draft=${{ env.RELEASE_DRAFT }} \
+          --prerelease=${{ env.RELEASE_PRERELEASE }}
+    
+    - name: Upload EFI to release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release upload ${{ steps.get_version.outputs.version }} \
+          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi \
+          --clobber
+    
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: netboot.xyz-rampart-aios-${{ steps.build_local_main.outputs.version }}.efi
-        path: buildout/ipxe/netboot.xyz-rampart-aios-${{ steps.build_local_main.outputs.version }}.efi
+        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi
+        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_version.outputs.version }}.efi
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 
