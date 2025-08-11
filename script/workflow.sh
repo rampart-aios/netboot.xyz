@@ -215,7 +215,7 @@ upload_artifact() {
 }
 
 # Workflow functions
-run_pr_workflow() {
+run_build() {
     log_info "Running PR workflow..."
     
     # Get commit hash
@@ -229,7 +229,7 @@ run_pr_workflow() {
     echo "version=$commit_hash"
 }
 
-run_release_workflow() {
+run_build_local_dev() {
     local version_type=${1:-"minor"}
     log_info "Running release workflow (type: $version_type)..."
     
@@ -277,10 +277,10 @@ main() {
             ;;
         "release")
             local type=${2:-"minor"}
-            run_release_workflow $type
+            run_build_local_dev $type
             ;;
         "pr")
-            run_pr_workflow
+            run_build
             ;;
         "test")
             local python_version=${2:-"$PYTHON_VERSION"}

@@ -2,7 +2,7 @@ name: local_dev
 
 on:
   push:
-    branches: [feat-efi-pipeline]
+    branches: [local_dev]
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
