@@ -2,7 +2,7 @@ name: local_dev
 
 on:
   push:
-    branches: [local_dev]
+    branches: [feat-efi-pipeline]
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Run minor release workflow
+    - name: Run local_dev release workflow
       id: build_local_dev
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         source ./script/workflow.sh
-        output=$(run_build_local_dev)
+        output=$(run_build_local_dev local_dev)
         echo "$output"
         echo "version=$(echo "$output" | grep "version=" | tail -1 | cut -d'=' -f2)" >> $GITHUB_OUTPUT
     - name: Upload EFI file as artifact

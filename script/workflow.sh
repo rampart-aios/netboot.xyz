@@ -9,9 +9,9 @@ set -e
 # Configuration
 EFI_FILENAME_PREFIX="netboot.xyz-rampart-aios"
 ARTIFACT_RETENTION_DAYS=90
-DEFAULT_VERSION_TYPE="minor"
-MINOR_VERSION_PREFIX="v0"
-MAJOR_VERSION_PREFIX="v"
+DEFAULT_VERSION_TYPE="local_dev"
+LOCAL_DEV_VERSION_PREFIX="v0"
+LOCAL_MAIN_VERSION_PREFIX="v"
 DEFAULT_RELEASE_NOTES="Release of Rampart-AIOS iPXE EFI bootloader"
 DRAFT_RELEASE_NOTES="Draft Release of Rampart-AIOS iPXE EFI bootloader"
 PYTHON_VERSION="3.13"
@@ -51,32 +51,32 @@ get_version() {
     
     log_info "Getting $version_type version..."
     
-    if [ "$version_type" = "minor" ]; then
-        # Get the latest minor version from existing releases
-        local latest_minor=$(gh release list --limit 1000 | grep "$MINOR_VERSION_PREFIX\." | head -1 | awk '{print $1}' | sed 's/v//')
+    if [ "$version_type" = "local_dev" ]; then
+        # Get the latest local_dev version from existing releases
+        local latest_local_dev=$(gh release list --limit 1000 | grep "$LOCAL_DEV_VERSION_PREFIX\." | head -1 | awk '{print $1}' | sed 's/v//')
         
-        if [ -z "$latest_minor" ]; then
-            # No existing minor versions, start with v0.0.1
+        if [ -z "$latest_local_dev" ]; then
+            # No existing local_dev versions, start with v0.0.1
             local new_version="0.0.1"
         else
             # Extract patch number and increment
-            local patch=$(echo $latest_minor | awk -F'.' '{print $3}')
+            local patch=$(echo $latest_local_dev | awk -F'.' '{print $3}')
             local new_patch=$((patch + 1))
             local new_version="0.0.$new_patch"
         fi
         
         echo "version=v$new_version"
         
-    elif [ "$version_type" = "major" ]; then
-        # Get the latest major version from existing releases
-        local latest_major=$(gh release list --limit 1000 | grep "v[1-9]" | head -1 | awk '{print $1}' | sed 's/v//')
+    elif [ "$version_type" = "local_main" ]; then
+        # Get the latest local_main version from existing releases
+        local latest_local_main=$(gh release list --limit 1000 | grep "v[1-9]" | head -1 | awk '{print $1}' | sed 's/v//')
         
-        if [ -z "$latest_major" ]; then
-            # No existing major versions, start with v1.0.0
+        if [ -z "$latest_local_main" ]; then
+            # No existing local_main versions, start with v1.0.0
             local new_version="1.0.0"
         else
             # Extract major number and increment
-            local major=$(echo $latest_major | awk -F'.' '{print $1}')
+            local major=$(echo $latest_local_main | awk -F'.' '{print $1}')
             local new_major=$((major + 1))
             local new_version="$new_major.0.0"
         fi
@@ -84,7 +84,7 @@ get_version() {
         echo "version=v$new_version"
         
     else
-        log_error "Invalid version type. Use 'minor' or 'major'"
+        log_error "Invalid version type. Use 'local_dev' or 'local_main'"
         exit 1
     fi
 }
@@ -230,7 +230,7 @@ run_build() {
 }
 
 run_build_local_dev() {
-    local version_type=${1:-"minor"}
+    local version_type=${1:-"local_dev"}
     log_info "Running release workflow (type: $version_type)..."
     
     # Get version
@@ -251,7 +251,7 @@ run_build_local_dev() {
     build_efi $version
     
     # Create release
-    if [ "$version_type" = "minor" ]; then
+    if [ "$version_type" = "local_dev" ]; then
         create_release "$version" "$version" "$DRAFT_RELEASE_NOTES" "true" "true"
     else
         create_release "$version" "$version" "$DEFAULT_RELEASE_NOTES" "false" "false"
@@ -272,11 +272,11 @@ main() {
             build_efi $version $platform
             ;;
         "version")
-            local type=${2:-"minor"}
+            local type=${2:-"local_dev"}
             get_version $type
             ;;
         "release")
-            local type=${2:-"minor"}
+            local type=${2:-"local_dev"}
             run_build_local_dev $type
             ;;
         "pr")
@@ -293,7 +293,7 @@ main() {
             echo ""
             echo "Commands:"
             echo "  build [version] [platform]                    - Build EFI bootloader"
-            echo "  version [type]                                - Get semantic version (minor/major)"
+            echo "  version [type]                                - Get semantic version (local_dev/local_main)"
             echo "  release [type]                                - Run full release workflow"
             echo "  pr                                            - Run PR workflow"
             echo "  test [python] [ansible] [ansible-lint]       - Run Ansible tests"
@@ -301,15 +301,15 @@ main() {
             echo ""
             echo "Examples:"
             echo "  $0 build v1.0.0 linux/amd64"
-            echo "  $0 version minor"
-            echo "  $0 release major"
+            echo "  $0 version local_dev"
+            echo "  $0 release local_main"
             echo "  $0 pr"
             echo "  $0 test 3.13 10.2.0 24.7.0"
             echo ""
             echo "Single-line examples:"
             echo "  $0 build v1.0.0 linux/amd64"
-            echo "  $0 version minor"
-            echo "  $0 release major"
+            echo "  $0 version local_dev"
+            echo "  $0 release local_main"
             echo "  $0 pr"
             echo "  $0 test 3.13 10.2.0 24.7.0"
             ;;
