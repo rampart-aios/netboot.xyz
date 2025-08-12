@@ -49,7 +49,9 @@ jobs:
     name: "Build EFI Bootloader"
     needs: get-version
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    outputs:
+      efi_filename: ${{ steps.build.outputs.efi_filename }}
     steps:
     - uses: actions/checkout@v4
     
@@ -74,15 +76,14 @@ jobs:
         cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/$efi_filename
         echo "Renamed to $efi_filename"
         
-        echo "Built EFI bootloader: $efi_filename"
-    
-    - name: Verify EFI file
-      run: |
-        if [ ! -f "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi" ]; then
-          echo "Error: EFI file not found!"
+        # Verify the renamed EFI file exists
+        if [ ! -f "buildout/ipxe/$efi_filename" ]; then
+          echo "Error: EFI file not found after renaming!"
           exit 1
         fi
         echo "EFI file verified successfully"
+        
+        echo "efi_filename=$efi_filename" >> $GITHUB_OUTPUT
 
   create-release:
     name: "Create Release"
@@ -103,7 +104,7 @@ jobs:
     - name: Upload EFI to release
       run: |
         gh release upload ${{ needs.get-version.outputs.version }} \
-          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi \
+          buildout/ipxe/${{ needs.build-efi.outputs.efi_filename }} \
           --clobber
 
   upload-artifact:
@@ -117,6 +118,6 @@ jobs:
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi
-        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi
+        name: ${{ needs.build-efi.outputs.efi_filename }}
+        path: buildout/ipxe/${{ needs.build-efi.outputs.efi_filename }}
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 

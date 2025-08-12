@@ -44,6 +44,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
     - name: Get commit hash and branch
       id: get_commit
       run: |
@@ -70,6 +73,13 @@ jobs:
         efi_filename="${{ env.EFI_FILENAME_PREFIX }}-${{ steps.get_commit.outputs.branch_name }}-${{ steps.get_commit.outputs.commit_hash }}.efi"
         cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/$efi_filename
         echo "Renamed to $efi_filename"
+        
+        # Verify the renamed EFI file exists
+        if [ ! -f "buildout/ipxe/$efi_filename" ]; then
+          echo "Error: EFI file not found after renaming!"
+          exit 1
+        fi
+        echo "EFI file verified successfully"
         
         echo "version=${{ steps.get_commit.outputs.commit_hash }}" >> $GITHUB_OUTPUT
     
