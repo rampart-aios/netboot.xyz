@@ -2,9 +2,9 @@ name: test_and_build
 
 on:
   pull_request:
-    branches: ['**']
+    branches: [local_dev, local_main]
   push:
-    branches: ['**']
+    branches-ignore: [local_dev, local_main]
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
