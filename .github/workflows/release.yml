@@ -2,7 +2,7 @@ name: release_local_main
 
 on:
   push:
-    branches: [local_main, feat-efi-pipeline]
+    branches: [local_main]
 
 env:
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
