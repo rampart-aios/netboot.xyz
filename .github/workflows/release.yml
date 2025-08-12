@@ -45,13 +45,11 @@ jobs:
         echo "version=v$new_version"
         echo "version=v$new_version" >> $GITHUB_OUTPUT
 
-  build-efi:
-    name: "Build EFI Bootloader"
+  build-and-release:
+    name: "Build EFI and Create Release"
     needs: get-version
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    outputs:
-      efi_filename: ${{ steps.build.outputs.efi_filename }}
+    timeout-minutes: 45
     steps:
     - uses: actions/checkout@v4
     
@@ -84,14 +82,6 @@ jobs:
         echo "EFI file verified successfully"
         
         echo "efi_filename=$efi_filename" >> $GITHUB_OUTPUT
-
-  create-release:
-    name: "Create Release"
-    needs: [get-version, build-efi]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-    - uses: actions/checkout@v4
     
     - name: Create release
       run: |
@@ -104,20 +94,12 @@ jobs:
     - name: Upload EFI to release
       run: |
         gh release upload ${{ needs.get-version.outputs.version }} \
-          buildout/ipxe/${{ needs.build-efi.outputs.efi_filename }} \
+          buildout/ipxe/${{ steps.build.outputs.efi_filename }} \
           --clobber
-
-  upload-artifact:
-    name: "Upload Versioned Artifact"
-    needs: [get-version, build-efi]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-    - uses: actions/checkout@v4
     
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ needs.build-efi.outputs.efi_filename }}
-        path: buildout/ipxe/${{ needs.build-efi.outputs.efi_filename }}
+        name: ${{ steps.build.outputs.efi_filename }}
+        path: buildout/ipxe/${{ steps.build.outputs.efi_filename }}
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 
