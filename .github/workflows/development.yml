@@ -1,60 +1,105 @@
-name: development
+name: release_local_dev
 
 on:
   push:
-    branches:
-      - development
-  workflow_dispatch:
+    branches: [local_dev]
 
 env:
-  DISCORD_HOOK_URL: ${{ secrets.DISCORD_HOOK_URL }}
-  GITHUB_SHA: ${{ github.sha }}
+  EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
+  DOCKER_IMAGE: "localbuild"
+  RELEASE_NOTES: "Draft Release of Rampart-AIOS iPXE EFI bootloader"
+  RELEASE_DRAFT: "true"
+  RELEASE_PRERELEASE: "true"
+  VERSION_PREFIX: "v0"
+  VERSION_TYPE: "local_dev"
+  
+  ARTIFACT_RETENTION_DAYS: 90
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
-  development-build:
-    name: Build Development
+  get-version:
+    name: "Get Version"
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Get version
+      id: get_version
+      run: |
+        # Get the latest version from existing releases
+        latest_version=$(gh release list --limit 1000 | grep "${{ env.VERSION_PREFIX }}\." | head -1 | awk '{print $1}' | sed 's/v//')
+        
+        if [ -z "$latest_version" ]; then
+          # No existing versions, start with v0.0.1
+          new_version="0.0.1"
+        else
+          # Extract patch number and increment
+          patch=$(echo $latest_version | awk -F'.' '{print $3}')
+          new_patch=$((patch + 1))
+          new_version="0.0.$new_patch"
+        fi
+        
+        echo "version=v$new_version"
+        echo "version=v$new_version" >> $GITHUB_OUTPUT
+
+  build-and-release:
+    name: "Build EFI and Create Release"
+    needs: get-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build EFI Bootloader
+      id: build
+      run: |
+        echo "Building EFI bootloader for ${{ env.VERSION_TYPE }} version: ${{ needs.get-version.outputs.version }}"
+        
+        # Build EFI bootloader
+        docker build -t ${{ env.DOCKER_IMAGE }} -f Dockerfile .
+        docker run --rm -i -v $(pwd):/buildout ${{ env.DOCKER_IMAGE }}
+        
+        # Verify EFI content
+        echo "Verifying EFI content..."
+        ls -la buildout/ipxe/netboot.xyz.efi
+        
+        # Rename EFI file with ${{ env.VERSION_TYPE }} version
+        efi_filename="${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi"
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/$efi_filename
+        echo "Renamed to $efi_filename"
+        
+        # Verify the renamed EFI file exists
+        if [ ! -f "buildout/ipxe/$efi_filename" ]; then
+          echo "Error: EFI file not found after renaming!"
+          exit 1
+        fi
+        echo "EFI file verified successfully"
+        
+        echo "efi_filename=$efi_filename" >> $GITHUB_OUTPUT
+    
+    - name: Create draft release
+      run: |
+        gh release create ${{ needs.get-version.outputs.version }} \
+          --title "${{ needs.get-version.outputs.version }}" \
+          --notes "${{ env.RELEASE_NOTES }}" \
+          --draft=${{ env.RELEASE_DRAFT }} \
+          --prerelease=${{ env.RELEASE_PRERELEASE }}
+    
+    - name: Upload EFI to release
+      run: |
+        gh release upload ${{ needs.get-version.outputs.version }} \
+          buildout/ipxe/${{ steps.build.outputs.efi_filename }} \
+          --clobber
+    
+    - name: Upload EFI file as artifact
+      uses: actions/upload-artifact@v4
       with:
-        ref: development
-
-    - name: Retrieve Certs
-      run: |
-        ./script/retrieve_certs
-      env:
-        GIT_USER: ${{ secrets.GIT_USER }}
-        GIT_AUTH: ${{ secrets.GIT_AUTH }}
-        GIT_URL: ${{ secrets.GIT_URL }}
-        CERTS_KEY: ${{ secrets.CERTS_KEY }}
-
-    - name: Build Development Release
-      run: |
-        ./script/build_release dev
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_DEV }}
-        aws-region: ${{ secrets.AWS_ACCESS_REGION }}
-
-    - name: Deploy development release to bucket/SHA
-      run: |
-        aws s3 sync --no-progress --acl public-read s3out s3://${{ secrets.AWS_S3_BUCKET_DEV }}/$GITHUB_SHA
-
-    - name: Deploy development version file to bucket
-      run: |
-        aws s3 sync --no-progress --acl public-read s3outver s3://${{ secrets.AWS_S3_BUCKET_DEV }}
-
-    - name: Notify Discord on failure
-      if: failure()
-      run: |
-        ./script/message failure
-
-    - name: Notify Discord on completion
-      if: success()
-      run: |
-        ./script/message dev-push
+        name: ${{ steps.build.outputs.efi_filename }}
+        path: buildout/ipxe/${{ steps.build.outputs.efi_filename }}
+        retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 
