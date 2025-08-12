@@ -5,7 +5,6 @@ on:
     branches: [local_dev, feat-efi-pipeline]
 
 env:
-  SOURCE_BRANCH: "feat-efi-pipeline"
   EFI_FILENAME_PREFIX: "netboot.xyz-rampart-aios"
   DOCKER_IMAGE: "localbuild"
   RELEASE_NOTES: "Draft Release of Rampart-AIOS iPXE EFI bootloader"
@@ -45,46 +44,45 @@ jobs:
         echo "version=v$new_version"
         echo "version=v$new_version" >> $GITHUB_OUTPUT
 
-  download-efi:
-    name: "Download EFI Artifact"
+  build-efi:
+    name: "Build EFI Bootloader"
     needs: get-version
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
     
-    - name: Download EFI artifact from feat-efi-pipeline branch
-      run: |
-        set -e
-        echo "Finding latest successful run for workflow 'test_and_build' on branch '${{ env.SOURCE_BRANCH }}'..."
-        run_id=$(gh run list --workflow test_and_build --branch "${{ env.SOURCE_BRANCH }}" --status success --json databaseId -q '.[0].databaseId')
-        if [ -z "$run_id" ]; then
-          echo "No successful runs found for branch '${{ env.SOURCE_BRANCH }}'."; exit 1
-        fi
-        echo "Downloading artifacts from run ID: $run_id"
-        gh run download "$run_id" -p "${{ env.EFI_FILENAME_PREFIX }}-${{ env.SOURCE_BRANCH }}-*.efi" -D buildout/ipxe/
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
     
-    - name: List downloaded artifacts
+    - name: Build EFI bootloader
       run: |
-        echo "Downloaded artifacts:"
-        ls -la buildout/ipxe/
+        # Build Docker image
+        docker build -t ${{ env.DOCKER_IMAGE }} .
+        
+        # Create output directory
+        mkdir -p buildout/ipxe
+        
+        # Run Docker container to build EFI
+        docker run --rm -v "$(pwd)/buildout:/buildout" ${{ env.DOCKER_IMAGE }} \
+          make -C /usr/src/ipxe/src bin-x86_64-efi/ipxe.efi EMBED=/usr/src/ipxe/src/config/local/ipxe.conf
+        
+        # Rename the built EFI file
+        mv buildout/ipxe/ipxe.efi "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi"
+        
+        echo "Built EFI bootloader: ${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi"
     
-    - name: Rename EFI to local_dev format
+    - name: Verify EFI file
       run: |
-        # Find the downloaded EFI file and rename it to local_dev format
-        efi_file=$(find buildout/ipxe/ -name "${{ env.EFI_FILENAME_PREFIX }}-${{ env.SOURCE_BRANCH }}-*.efi" | head -1)
-        if [ -n "$efi_file" ]; then
-          local_dev_filename="${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi"
-          cp "$efi_file" "buildout/ipxe/$local_dev_filename"
-          echo "Renamed to $local_dev_filename"
-        else
-          echo "Error: No EFI artifact found for branch ${{ env.SOURCE_BRANCH }}"
+        if [ ! -f "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi" ]; then
+          echo "Error: EFI file not found!"
           exit 1
         fi
+        echo "EFI file verified successfully"
 
   create-release:
     name: "Create Draft Release"
-    needs: [get-version, download-efi]
+    needs: [get-version, build-efi]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -106,7 +104,7 @@ jobs:
 
   upload-artifact:
     name: "Upload Versioned Artifact"
-    needs: [get-version, download-efi]
+    needs: [get-version, build-efi]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
