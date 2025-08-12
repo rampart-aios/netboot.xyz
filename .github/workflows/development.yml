@@ -11,6 +11,7 @@ env:
   RELEASE_DRAFT: "true"
   RELEASE_PRERELEASE: "true"
   VERSION_PREFIX: "v0"
+  VERSION_TYPE: "local_dev"
   
   ARTIFACT_RETENTION_DAYS: 90
   GH_TOKEN: ${{ github.token }}
@@ -25,14 +26,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Get local_dev version
+    - name: Get version
       id: get_version
       run: |
-        # Get the latest local_dev version from existing releases
+        # Get the latest version from existing releases
         latest_version=$(gh release list --limit 1000 | grep "${{ env.VERSION_PREFIX }}\." | head -1 | awk '{print $1}' | sed 's/v//')
         
         if [ -z "$latest_version" ]; then
-          # No existing local_dev versions, start with v0.0.1
+          # No existing versions, start with v0.0.1
           new_version="0.0.1"
         else
           # Extract patch number and increment
@@ -55,26 +56,29 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     
-    - name: Build EFI bootloader
+    - name: Build EFI Bootloader
+      id: build
       run: |
-        # Build Docker image
-        docker build -t ${{ env.DOCKER_IMAGE }} .
+        echo "Building EFI bootloader for ${{ env.VERSION_TYPE }} version: ${{ needs.get-version.outputs.version }}"
         
-        # Create output directory
-        mkdir -p buildout/ipxe
+        # Build EFI bootloader
+        docker build -t ${{ env.DOCKER_IMAGE }} -f Dockerfile .
+        docker run --rm -i -v $(pwd):/buildout ${{ env.DOCKER_IMAGE }}
         
-        # Run Docker container to build EFI
-        docker run --rm -v "$(pwd)/buildout:/buildout" ${{ env.DOCKER_IMAGE }} \
-          make -C /usr/src/ipxe/src bin-x86_64-efi/ipxe.efi EMBED=/usr/src/ipxe/src/config/local/ipxe.conf
+        # Verify EFI content
+        echo "Verifying EFI content..."
+        ls -la buildout/ipxe/netboot.xyz.efi
         
-        # Rename the built EFI file
-        mv buildout/ipxe/ipxe.efi "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi"
+        # Rename EFI file with ${{ env.VERSION_TYPE }} version
+        efi_filename="${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi"
+        cp buildout/ipxe/netboot.xyz.efi buildout/ipxe/$efi_filename
+        echo "Renamed to $efi_filename"
         
-        echo "Built EFI bootloader: ${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi"
+        echo "Built EFI bootloader: $efi_filename"
     
     - name: Verify EFI file
       run: |
-        if [ ! -f "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi" ]; then
+        if [ ! -f "buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi" ]; then
           echo "Error: EFI file not found!"
           exit 1
         fi
@@ -99,7 +103,7 @@ jobs:
     - name: Upload EFI to release
       run: |
         gh release upload ${{ needs.get-version.outputs.version }} \
-          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi \
+          buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi \
           --clobber
 
   upload-artifact:
@@ -113,6 +117,6 @@ jobs:
     - name: Upload EFI file as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi
-        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-local_dev-${{ needs.get-version.outputs.version }}.efi
+        name: ${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi
+        path: buildout/ipxe/${{ env.EFI_FILENAME_PREFIX }}-${{ env.VERSION_TYPE }}-${{ needs.get-version.outputs.version }}.efi
         retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }} 
