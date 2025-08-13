@@ -1,15 +1,24 @@
 #!ipxe
+# =============================================================================
+# netboot.xyz - Main Boot Template
+# =============================================================================
+
+# Terminal formatting
 set esc:hex 1b
 set bold ${esc:string}[1m
 set boldoff ${esc:string}[22m
 set fg_gre ${esc:string}[32m
 set fg_cya ${esc:string}[36m
 set fg_whi ${esc:string}[37m
+
+# Error messages
 set VARS_ERR Local vars file not found... attempting TFTP boot...
 set TFTP_ERR Local TFTP failed... attempting remote HTTPS
 set V6_ERR IPv6 appears to have failed... attempting IPv4...
 set HTTPS_ERR HTTPS appears to have failed... attempting HTTP
 set HTTP_ERR HTTP has failed, localbooting...
+
+# Template variables
 set site_name {{ site_name }}
 set boot_domain {{ boot_domain }}
 set ipxe_version ${version}
@@ -17,11 +26,16 @@ set version {{ boot_version }}
 set conn_type https
 set tftp-root-path /
 
+# =============================================================================
+# Main Boot Flow
+# =============================================================================
+
 :start
 echo ${bold}${fg_gre}${site_name} - ${fg_whi}v${version}${boldoff}
 iseq ${site_name} netboot.xyz || echo ${bold}${fg_whi}Powered by ${fg_gre}netboot.xyz${fg_whi}${boldoff}
 prompt --key m --timeout 4000 Hit the ${bold}m${boldoff} key to open failsafe menu... && goto failsafe || goto dhcp
 
+# DHCP and TFTP Configuration
 :dhcp
 echo
 dhcp || goto netconfig
@@ -44,6 +58,10 @@ goto load-custom-ipxe
 # This ensures the chain command always executes regardless of filename
 goto tftpmenu
 
+# =============================================================================
+# Failsafe and Recovery
+# =============================================================================
+
 :failsafe
 menu ${boot_domain} Failsafe Menu
 item localboot Boot to local drive
@@ -55,6 +73,7 @@ item reboot Reboot System
 choose failsafe_choice || exit
 goto ${failsafe_choice}
 
+# Manual network configuration
 :netconfig
 echo Network Configuration:
 echo Available interfaces...
@@ -70,6 +89,7 @@ ifopen net${net}
 echo Attempting Ubuntu boot...
 goto menu || goto failsafe
 
+# VLAN configuration
 :vlan
 echo VLAN Configuration:
 echo Available interfaces...
@@ -83,6 +103,7 @@ ifconf --configurator dhcp net${net}-${vlan} || echo DHCP failed trying manual &
 echo Attempting Ubuntu boot...
 goto menu || goto failsafe
 
+# Manual VLAN network configuration
 :netvlan
 echo -n IP: && read net${net}-${vlan}/ip
 echo -n Subnet mask: && read net${net}-${vlan}/netmask
@@ -92,8 +113,12 @@ ifopen net${net}-${vlan}
 echo Attempting Ubuntu boot...
 goto menu || goto failsafe
 
-:tftpmenu
-# Set Ubuntu-specific variables first
+# =============================================================================
+# Ubuntu Boot Configuration
+# =============================================================================
+
+# Ubuntu boot configuration
+:setup_ubuntu
 set mirror https://releases.ubuntu.com
 set base_dir ubuntu
 set codename noble
@@ -107,6 +132,8 @@ set kernel_url ${mirror}/${codename}/netboot/${os_arch}
 set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
 set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
 
+# Boot Ubuntu installer
+:boot_ubuntu
 echo Loading Ubuntu 24.04 installer...
 echo Kernel URL: ${kernel_url}
 echo Autoinstall URL: ${autoinstall_url}
@@ -121,36 +148,16 @@ kernel ${kernel_url}/linux \
     initrd=initrd.magic
 initrd ${kernel_url}/initrd
 boot || echo Ubuntu boot failed, falling back to failsafe... && goto failsafe
+
+:tftpmenu
+goto setup_ubuntu
 
 :menu
-# Set Ubuntu-specific variables first
-set mirror https://releases.ubuntu.com
-set base_dir ubuntu
-set codename noble
-set version 24.04.2
-set os_arch amd64
-set department ro
-set machine ws006964
+goto setup_ubuntu
 
-# Set derived URLs
-set kernel_url ${mirror}/${codename}/netboot/${os_arch}
-set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
-set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
-
-echo Loading Ubuntu 24.04 installer...
-echo Kernel URL: ${kernel_url}
-echo Autoinstall URL: ${autoinstall_url}
-
-imgfree
-kernel ${kernel_url}/linux \
-    root=/dev/ram0 \
-    ramdisk_size=3500000 \
-    cloud-config-url=/dev/null \
-    ip=dhcp url=${ubuntu_iso_url} \
-    autoinstall ds=nocloud-net;s=${autoinstall_url}/ \
-    initrd=initrd.magic
-initrd ${kernel_url}/initrd
-boot || echo Ubuntu boot failed, falling back to failsafe... && goto failsafe
+# =============================================================================
+# Utility Functions
+# =============================================================================
 
 :localboot
 exit
