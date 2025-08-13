@@ -39,6 +39,7 @@ jobs:
   build:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     concurrency:
       group: build-${{ github.head_ref || github.ref_name }}
       cancel-in-progress: true
