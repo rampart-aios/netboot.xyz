@@ -38,6 +38,9 @@ jobs:
   build:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.ref_name }}-${{ github.event_name }}
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
 
