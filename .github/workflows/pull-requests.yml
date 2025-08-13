@@ -14,6 +14,8 @@ jobs:
   test:
     name: Test Pull Request
     runs-on: ubuntu-latest
+    # Only run full testing for PR events, not for push events
+    if: github.event_name == 'pull_request'
     steps:
     - uses: actions/checkout@v4
 
@@ -38,22 +40,31 @@ jobs:
   build:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
+    # Run for both push and PR events, but with different behavior
     concurrency:
-      group: build-${{ github.ref_name }}-${{ github.event_name }}
+      # Smart concurrency: same branch = same group, cancels previous runs
+      # github.head_ref = source branch for PRs, github.ref_name = branch for pushes
+      group: build-${{ github.head_ref || github.ref_name }}
       cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
     - name: Build EFI
       run: |
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "🚀 Building EFI for PR review (full testing mode)"
+        else
+          echo "⚡ Building EFI for feature branch (quick feedback mode)"
+        fi
+        
         NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
         echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
 
     - name: Upload EFI
+      if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'opened')
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.NEW_NAME }}
