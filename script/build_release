@@ -1,82 +1,30 @@
 #!/bin/bash
 set -e
 
-TYPE=$1
-HARD_RELEASE="2.x"
-HARD_RC="2.x-RC"
-DEV_URL="dev.boot.netboot.xyz"
-STAGING_URL="staging.boot.netboot.xyz"
-PROD_URL="boot.netboot.xyz"
-NBXYZ_OVERRIDES=production
+# Configuration
+NBXYZ_OVERRIDES=default
 
-# Set boot domain
-if [[ "${TYPE}" == "dev" ]]; then
-  BOOT_DOMAIN="s3.amazonaws.com/${DEV_URL}/${GITHUB_SHA}"
-  BOOT_VERSION="${GITHUB_SHA}"
-elif [[ "${TYPE}" == "pr" ]]; then
-  BOOT_DOMAIN="test.com"
-  BOOT_VERSION="test"
-  NBXYZ_OVERRIDES=default
-elif [[ "${TYPE}" == "rc" ]]; then
-  BOOT_VERSION=$(cat version.txt)-RC
-  BOOT_DOMAIN="${STAGING_URL}/${BOOT_VERSION}"
-elif [[ "${TYPE}" == "release" ]]; then
-  BOOT_VERSION=$(cat version.txt)
-  BOOT_DOMAIN="${PROD_URL}/${BOOT_VERSION}"
-elif [[ "${TYPE}" == "rolling" ]]; then
-  HARD_RELEASE="2.x"
-  PROD_URL="boot.netboot.xyz"
-fi
+# Get branch name and short commit hash for rampart-aios naming
+BRANCH_NAME=${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}
+SHORT_COMMIT=${GITHUB_SHA:0:7}
 
-# build release files 
-if ! [[ "${TYPE}" == "rolling" ]]; then
-  sed -i \
-    "/^# boot_version/c\boot_version: \"${BOOT_VERSION}\"" \
-    user_overrides.yml
-  sed -i \
-    "/^# boot_domain/c\boot_domain: ${BOOT_DOMAIN}" \
-    user_overrides.yml
+echo "Building for branch: ${BRANCH_NAME}"
+echo "Commit hash: ${GITHUB_SHA:-$(git rev-parse HEAD)}"
+echo "Short commit: ${SHORT_COMMIT}"
 
-  # Build release
-  docker build -t localbuild --build-arg NBXYZ_OVERRIDES=${NBXYZ_OVERRIDES} .
-  docker run --rm -i -v $(pwd):/buildout localbuild
+# Build release
+echo "Building Docker image with NBXYZ_OVERRIDES=${NBXYZ_OVERRIDES}..."
+docker build -t localbuild --build-arg NBXYZ_OVERRIDES=${NBXYZ_OVERRIDES} .
 
-  # Generate folder outputs
-  mkdir -p s3out
-  mkdir -p s3outver
-  cp -r buildout/* s3out/
-  cp buildout/version.ipxe s3outver/
-  mkdir -p githubout
-  mv buildout/ipxe/* githubout/
-  cd buildout
-  rm -Rf ipxe
-  tar -czf menus.tar.gz *
-  mv menus.tar.gz ../githubout
-  cd ..
-  if [[ "${TYPE}" == "dev" ]]; then
-    cp githubout/menus.tar.gz s3out/
-  fi
-fi
+echo "Running Docker container to generate build artifacts..."
+docker run --rm -i -v $(pwd):/buildout localbuild
 
-# Latest style endpoints for RC and Live
-if [[ "${TYPE}" == "release" ]] || [[ "${TYPE}" == "rolling" ]] || [[ "${TYPE}" == "rc" ]]; then
-  rm -Rf buildout/
-  if [[ "${TYPE}" == "release" ]] || [[ "${TYPE}" == "rolling" ]]; then
-    sed -i \
-      -e "/^boot_version/c\boot_version: \"${HARD_RELEASE}\"" \
-      -e "/^boot_domain/c\boot_domain: ${PROD_URL}" \
-      user_overrides.yml
-    docker build -t localbuild --build-arg NBXYZ_OVERRIDES=${NBXYZ_OVERRIDES} .
-    docker run --rm -i -v $(pwd):/buildout localbuild
-  fi
-  if [[ "${TYPE}" == "rc" ]]; then
-    sed -i \
-      -e "/^boot_version/c\boot_version: \"${HARD_RC}\"" \
-      -e "/^boot_domain/c\boot_domain: ${STAGING_URL}/rc" \
-      user_overrides.yml
-    docker build -t localbuild --build-arg NBXYZ_OVERRIDES=${NBXYZ_OVERRIDES} .
-    docker run --rm -i -v $(pwd):/buildout localbuild
-  fi
-  mkdir -p s3out-latest
-  cp -r buildout/* s3out-latest/
+# Rename netboot.xyz.efi to rampart-aios convention
+if [[ -f "buildout/ipxe/netboot.xyz.efi" ]]; then
+  NEW_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${SHORT_COMMIT}.efi"
+  mv "buildout/ipxe/netboot.xyz.efi" "buildout/ipxe/${NEW_NAME}"
+  echo "NEW_NAME=${NEW_NAME}"
+else
+  echo "Warning: netboot.xyz.efi not found in buildout/ipxe/"
+  exit 1
 fi

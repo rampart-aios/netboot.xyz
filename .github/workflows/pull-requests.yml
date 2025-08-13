@@ -3,12 +3,15 @@ name: pull-requests
 on:
   pull_request:
     branches:
-      - development
-      - RC
-      - master
+      - local_dev
+      - local_main
+  push:
+    branches-ignore:
+      - local_dev
+      - local_main
 
 jobs:
-  test-pr:
+  test:
     name: Test Pull Request
     runs-on: ubuntu-latest
     steps:
@@ -32,14 +35,24 @@ jobs:
       run: |
         ansible-lint -v roles/netbootxyz/tasks
 
-  build-pr:
-    name: Build Pull Request
+  build:
+    name: Build EFI Bootloader
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
     - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
 
-    - name: Build PR release
+    - name: Build EFI
       run: |
-        ./script/build_release pr
+        NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
+        echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
+
+    - name: Upload EFI
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.NEW_NAME }}
+        path: buildout/ipxe/*.efi
+        retention-days: 90
