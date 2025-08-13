@@ -1,15 +1,48 @@
 #!ipxe
+# =============================================================================
+# netboot.xyz - Main Boot Template
+# =============================================================================
+
+# =============================================================================
+# CONFIGURATION - Modify these values as needed
+# =============================================================================
+
+# Ubuntu release configuration
+set mirror https://releases.ubuntu.com
+set base_dir ubuntu
+set codename noble
+set version 24.04.3
+set os_arch amd64
+
+# Target machine configuration  
+set department ro
+set machine ws006964
+
+# Derived URLs
+set kernel_url ${mirror}/${codename}/netboot/${os_arch}
+set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
+set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
+
+# =============================================================================
+# SYSTEM VARIABLES
+# =============================================================================
+
+# Terminal formatting
 set esc:hex 1b
 set bold ${esc:string}[1m
 set boldoff ${esc:string}[22m
 set fg_gre ${esc:string}[32m
 set fg_cya ${esc:string}[36m
 set fg_whi ${esc:string}[37m
+
+# Error messages
 set VARS_ERR Local vars file not found... attempting TFTP boot...
 set TFTP_ERR Local TFTP failed... attempting remote HTTPS
 set V6_ERR IPv6 appears to have failed... attempting IPv4...
 set HTTPS_ERR HTTPS appears to have failed... attempting HTTP
 set HTTP_ERR HTTP has failed, localbooting...
+
+# Template variables
 set site_name {{ site_name }}
 set boot_domain {{ boot_domain }}
 set ipxe_version ${version}
@@ -17,11 +50,16 @@ set version {{ boot_version }}
 set conn_type https
 set tftp-root-path /
 
+# =============================================================================
+# Main Boot Flow
+# =============================================================================
+
 :start
 echo ${bold}${fg_gre}${site_name} - ${fg_whi}v${version}${boldoff}
 iseq ${site_name} netboot.xyz || echo ${bold}${fg_whi}Powered by ${fg_gre}netboot.xyz${fg_whi}${boldoff}
 prompt --key m --timeout 4000 Hit the ${bold}m${boldoff} key to open failsafe menu... && goto failsafe || goto dhcp
 
+# DHCP and TFTP Configuration
 :dhcp
 echo
 dhcp || goto netconfig
@@ -40,19 +78,13 @@ iseq ${use_proxydhcp_settings} true && set tftp-server ${proxydhcp/next-server} 
 goto load-custom-ipxe
 
 :load-custom-ipxe
-isset ${tftp-server} && iseq ${filename} {{ bootloader_filename }}.kpxe && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} {{ bootloader_filename }}-undionly.kpxe && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} {{ bootloader_filename }}.efi && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} {{ bootloader_filename }}-snp.efi && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} {{ bootloader_filename }}-snponly.efi && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} {{ bootloader_filename }}-arm64.efi && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} ${tftp-root-path}{{ bootloader_filename }}.kpxe && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} ${tftp-root-path}{{ bootloader_filename }}-undionly.kpxe && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} ${tftp-root-path}{{ bootloader_filename }}.efi && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} ${tftp-root-path}{{ bootloader_filename }}-snp.efi && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} ${tftp-root-path}{{ bootloader_filename }}-snponly.efi && goto tftpmenu ||
-isset ${tftp-server} && iseq ${filename} ${tftp-root-path}{{ bootloader_filename }}-arm64.efi && goto tftpmenu ||
-goto menu
+# For custom bootloader, always go to tftpmenu to trigger chain command
+# This ensures the chain command always executes regardless of filename
+goto tftpmenu
+
+# =============================================================================
+# Failsafe and Recovery
+# =============================================================================
 
 :failsafe
 menu ${boot_domain} Failsafe Menu
@@ -65,6 +97,7 @@ item reboot Reboot System
 choose failsafe_choice || exit
 goto ${failsafe_choice}
 
+# Manual network configuration
 :netconfig
 echo Network Configuration:
 echo Available interfaces...
@@ -77,9 +110,10 @@ echo -n Subnet mask: && read net${net}/netmask
 echo -n Gateway: && read net${net}/gateway
 echo -n DNS: && read dns
 ifopen net${net}
-echo Attempting chainload of ${boot_domain}...
-goto menu || goto failsafe
+echo Starting Ubuntu installation...
+goto ubuntu_boot || goto failsafe
 
+# VLAN configuration
 :vlan
 echo VLAN Configuration:
 echo Available interfaces...
@@ -90,58 +124,64 @@ isset ${net} || set net 0
 echo -n Set VLAN 802.1Q tag [0 to 4094]: ${} && read vlan
 vcreate --tag ${vlan} net${net}
 ifconf --configurator dhcp net${net}-${vlan} || echo DHCP failed trying manual && goto netvlan
-echo Attempting chainload of ${boot_domain}...
-goto menu || goto failsafe
+echo Starting Ubuntu installation...
+goto ubuntu_boot || goto failsafe
 
+# Manual VLAN network configuration
 :netvlan
 echo -n IP: && read net${net}-${vlan}/ip
 echo -n Subnet mask: && read net${net}-${vlan}/netmask
 echo -n Gateway: && read net${net}-${vlan}/gateway
 echo -n DNS: && read dns
 ifopen net${net}-${vlan}
-echo Attempting chainload of ${boot_domain}...
-goto menu || goto failsafe
+echo Starting Ubuntu installation...
+goto ubuntu_boot || goto failsafe
 
-:tftpmenu
-chain tftp://${tftp-server}/local-vars.ipxe || echo ${VARS_ERR}
-isset ${hostname} && chain --autofree tftp://${tftp-server}/HOSTNAME-${hostname}.ipxe || echo Custom boot by Hostname not found trying MAC...
-chain --autofree tftp://${tftp-server}/MAC-${mac:hexraw}.ipxe || echo Custom boot by MAC (hexraw) not found, attempting by MAC (hexhyp)...
-chain --autofree tftp://${tftp-server}/MAC-${mac:hexhyp}.ipxe || echo Custom boot by MAC (hexhyp) not found, booting default...
-chain --autofree tftp://${tftp-server}/menu.ipxe || echo ${TFTP_ERR} && goto menu
+# =============================================================================
+# UBUNTU BOOT
+# =============================================================================
 
+:ubuntu_boot
+echo ${bold}${fg_gre}Starting Ubuntu 24.04.3 Installation${fg_whi}${boldoff}
+echo Kernel: ${kernel_url}/linux
+echo Initrd: ${kernel_url}/initrd  
+echo ISO: ${ubuntu_iso_url}
+echo Autoinstall: ${autoinstall_url}
+echo
+
+imgfree
+kernel ${kernel_url}/linux \
+    root=/dev/ram0 \
+    ramdisk_size=0 \
+    cloud-config-url=/dev/null \
+    ip=dhcp \
+    url=${ubuntu_iso_url} \
+    autoinstall ds=nocloud-net;s=${autoinstall_url}/ \
+    initrd=initrd
+
+initrd ${kernel_url}/initrd
+boot || goto failsafe
+
+# Entry points - all lead to Ubuntu boot
+:setup_ubuntu
+:tftpmenu  
 :menu
-{% if bootloader_https_enabled | bool %}
-:menu_https
-set conn_type https
-goto menu_start
-{% endif %}
+goto ubuntu_boot
 
-{% if bootloader_http_enabled | bool %}
-:menu_http
-set conn_type http
-goto menu_start
-{% endif %}
-
-:menu_start
-isset ${netX/dns6} && goto menu_v6 || goto menu_v4
-:menu_v6
-isset ${netX/dns6_bak} && set netX/dns6 ${netX/dns6_bak} ||
-set netX/dns6_bak ${netX/dns6}
-echo Attempting ${conn_type} boot over IPv6...
-chain --autofree ${conn_type}://${boot_domain}/menu.ipxe || echo ${conn_type} IPv6 failed... attempting IPv4...
-clear netX/dns6
-:menu_v4
-echo Attempting ${conn_type} boot over IPv4...
-chain --autofree ${conn_type}://${boot_domain}/menu.ipxe || echo ${conn_type} IPv4 failed...
-iseq ${conn_type} https && goto menu_http || goto localboot
+# =============================================================================
+# Utility Functions
+# =============================================================================
 
 :localboot
+# Exit to local system boot
 exit
 
-:retry
+:retry  
+# Restart the entire boot process
 goto start
 
 :reboot
+# Reboot the system and restart
 reboot
 goto start
 
