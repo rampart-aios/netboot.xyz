@@ -14,15 +14,7 @@ jobs:
   test:
     name: Test Pull Request
     runs-on: ubuntu-latest
-    # Run test job based on event type and branch conditions
-    # PR events always run for local_dev/local_main
-    # Push events only run for feature branches (not main branches)
-    if: |
-      (github.event_name == 'pull_request' && 
-       (github.event.pull_request.base.ref == 'local_dev' || 
-        github.event.pull_request.base.ref == 'local_main')) ||
-      (github.event_name == 'push' && 
-       (github.ref_name != 'local_dev' && github.ref_name != 'local_main'))
+    if: github.event_name == 'pull_request'
     steps:
     - uses: actions/checkout@v4
 
@@ -47,15 +39,6 @@ jobs:
   build:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
-    # Run build job based on event type and branch conditions
-    # PR events always run for local_dev/local_main
-    # Push events only run for feature branches (not main branches)
-    if: |
-      (github.event_name == 'pull_request' && 
-       (github.event.pull_request.base.ref == 'local_dev' || 
-        github.event.pull_request.base.ref == 'local_main')) ||
-      (github.event_name == 'push' && 
-       (github.ref_name != 'local_dev' && github.ref_name != 'local_main'))
     concurrency:
       group: build-${{ github.head_ref || github.ref_name }}
       cancel-in-progress: true
@@ -67,12 +50,7 @@ jobs:
 
     - name: Build EFI
       run: |
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          echo "🚀 Building EFI for PR review (target: ${{ github.event.pull_request.base.ref }})"
-        else
-          echo "⚡ Building EFI for feature branch: ${{ github.ref_name }}"
-        fi
-        
+        echo "Building EFI"
         NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
         echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
 
