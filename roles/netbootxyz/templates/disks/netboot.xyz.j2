@@ -119,7 +119,7 @@ goto menu || goto failsafe
 
 # Ubuntu boot configuration
 :setup_ubuntu
-set mirror https://old-releases.ubuntu.com/releases/
+set mirror https://old-releases.ubuntu.com/releases
 set base_dir ubuntu
 set codename noble
 set version 24.04.2
@@ -137,16 +137,29 @@ set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${departme
 echo Loading Ubuntu 24.04 installer...
 echo Kernel URL: ${kernel_url}
 echo Autoinstall URL: ${autoinstall_url}
+echo ISO URL: ${ubuntu_iso_url}
+
+# Test if URLs are accessible
+echo Testing kernel URL accessibility...
+ping -c 1 ${mirror} || echo Warning: Mirror not reachable
 
 imgfree
+echo Loading kernel from ${kernel_url}/linux...
 kernel ${kernel_url}/linux \
     root=/dev/ram0 \
     ramdisk_size=3500000 \
     cloud-config-url=/dev/null \
-    ip=dhcp url=${ubuntu_iso_url} \
+    ip=dhcp \
+    url=${ubuntu_iso_url} \
     autoinstall ds=nocloud-net;s=${autoinstall_url}/ \
-    initrd=initrd.magic
+    initrd=initrd \
+    boot=casper \
+    netboot=nfs
+
+echo Loading initrd from ${kernel_url}/initrd...
 initrd ${kernel_url}/initrd
+
+echo Starting Ubuntu boot...
 boot || echo Ubuntu boot failed, falling back to failsafe... && goto failsafe
 
 :tftpmenu
