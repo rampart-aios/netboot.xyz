@@ -1,0 +1,33 @@
+name: feature-testing
+
+on:
+  push:
+    branches-ignore:
+      - local_dev
+      - local_main
+
+jobs:
+  build:
+    name: Quick EFI Build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: feature-build-${{ github.ref_name }}
+      cancel-in-progress: true
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build EFI
+      run: |
+        echo "Quick build for feature branch: ${{ github.ref_name }}"
+        NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
+        echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
+
+    - name: Upload EFI
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.NEW_NAME }}
+        path: buildout/ipxe/*.efi
+        retention-days: 90

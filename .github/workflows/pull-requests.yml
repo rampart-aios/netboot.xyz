@@ -5,17 +5,11 @@ on:
     branches:
       - local_dev
       - local_main
-  push:
-    branches-ignore:
-      - local_dev
-      - local_main
 
 jobs:
   test:
     name: Test Pull Request
     runs-on: ubuntu-latest
-    # Only run full testing for PR events, not for push events
-    if: github.event_name == 'pull_request'
     steps:
     - uses: actions/checkout@v4
 
@@ -40,11 +34,8 @@ jobs:
   build:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
-    # Run for both push and PR events, but with different behavior
     concurrency:
-      # Smart concurrency: same branch = same group, cancels previous runs
-      # github.head_ref = source branch for PRs, github.ref_name = branch for pushes
-      group: build-${{ github.head_ref || github.ref_name }}
+      group: pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
@@ -54,17 +45,11 @@ jobs:
 
     - name: Build EFI
       run: |
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          echo "🚀 Building EFI for PR review (full testing mode)"
-        else
-          echo "⚡ Building EFI for feature branch (quick feedback mode)"
-        fi
-        
+        echo "Building EFI for PR review (full testing mode)"
         NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
         echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
 
     - name: Upload EFI
-      if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'opened')
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.NEW_NAME }}
