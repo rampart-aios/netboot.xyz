@@ -3,6 +3,30 @@
 # netboot.xyz - Main Boot Template
 # =============================================================================
 
+# =============================================================================
+# CONFIGURATION - Modify these values as needed
+# =============================================================================
+
+# Ubuntu release configuration
+set mirror https://releases.ubuntu.com
+set base_dir ubuntu
+set codename noble
+set version 24.04.3
+set os_arch amd64
+
+# Target machine configuration  
+set department ro
+set machine ws006964
+
+# Derived URLs
+set kernel_url ${mirror}/${codename}/netboot/${os_arch}
+set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
+set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
+
+# =============================================================================
+# SYSTEM VARIABLES - Do not modify unless you know what you're doing
+# =============================================================================
+
 # Terminal formatting
 set esc:hex 1b
 set bold ${esc:string}[1m
@@ -86,8 +110,8 @@ echo -n Subnet mask: && read net${net}/netmask
 echo -n Gateway: && read net${net}/gateway
 echo -n DNS: && read dns
 ifopen net${net}
-echo Attempting Ubuntu boot...
-goto menu || goto failsafe
+echo Starting Ubuntu installation...
+goto ubuntu_boot || goto failsafe
 
 # VLAN configuration
 :vlan
@@ -100,8 +124,8 @@ isset ${net} || set net 0
 echo -n Set VLAN 802.1Q tag [0 to 4094]: ${} && read vlan
 vcreate --tag ${vlan} net${net}
 ifconf --configurator dhcp net${net}-${vlan} || echo DHCP failed trying manual && goto netvlan
-echo Attempting Ubuntu boot...
-goto menu || goto failsafe
+echo Starting Ubuntu installation...
+goto ubuntu_boot || goto failsafe
 
 # Manual VLAN network configuration
 :netvlan
@@ -110,37 +134,22 @@ echo -n Subnet mask: && read net${net}-${vlan}/netmask
 echo -n Gateway: && read net${net}-${vlan}/gateway
 echo -n DNS: && read dns
 ifopen net${net}-${vlan}
-echo Attempting Ubuntu boot...
-goto menu || goto failsafe
+echo Starting Ubuntu installation...
+goto ubuntu_boot || goto failsafe
 
 # =============================================================================
-# Ubuntu Boot Configuration
+# UBUNTU BOOT - Main installation
 # =============================================================================
 
-# Ubuntu boot configuration
-:setup_ubuntu
-set mirror https://releases.ubuntu.com
-set base_dir ubuntu
-set codename noble
-set version 24.04.3
-set os_arch amd64
-set department ro
-set machine ws006964
-
-# static vars
-set kernel_url ${mirror}/${codename}/netboot/${os_arch}
-set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
-set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
-
-# Boot Ubuntu installer
-:boot_ubuntu
-echo Loading Ubuntu 24.04 installer...
-echo Kernel URL: ${kernel_url}
-echo Autoinstall URL: ${autoinstall_url}
-echo ISO URL: ${ubuntu_iso_url}
+:ubuntu_boot
+echo ${bold}${fg_gre}Starting Ubuntu 24.04.3 Installation${fg_whi}${boldoff}
+echo Kernel: ${kernel_url}/linux
+echo Initrd: ${kernel_url}/initrd  
+echo ISO: ${ubuntu_iso_url}
+echo Autoinstall: ${autoinstall_url}
+echo
 
 imgfree
-echo Loading kernel...
 kernel ${kernel_url}/linux \
     root=/dev/ram0 \
     ramdisk_size=0 \
@@ -148,31 +157,31 @@ kernel ${kernel_url}/linux \
     ip=dhcp \
     url=${ubuntu_iso_url} \
     autoinstall ds=nocloud-net;s=${autoinstall_url}/ \
-    initrd=initrd.magic
+    initrd=initrd
 
-echo Loading initrd...
 initrd ${kernel_url}/initrd
+boot || goto failsafe
 
-echo Starting Ubuntu boot...
-boot || echo Ubuntu boot failed, falling back to failsafe... && goto failsafe
-
-:tftpmenu
-goto setup_ubuntu
-
+# Entry points - all lead to Ubuntu boot
+:setup_ubuntu
+:tftpmenu  
 :menu
-goto setup_ubuntu
+goto ubuntu_boot
 
 # =============================================================================
 # Utility Functions
 # =============================================================================
 
 :localboot
+# Exit to local system boot
 exit
 
-:retry
+:retry  
+# Restart the entire boot process
 goto start
 
 :reboot
+# Reboot the system and restart
 reboot
 goto start
 
