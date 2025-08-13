@@ -152,8 +152,7 @@ kernel ${kernel_url}/linux \
     url=${ubuntu_iso_url} \
     autoinstall ds=nocloud-net;s=${autoinstall_url}/ \
     initrd=initrd \
-    boot=casper \
-    netboot=nfs
+    boot=casper
 
 echo Loading initrd from ${kernel_url}/initrd...
 initrd ${kernel_url}/initrd
