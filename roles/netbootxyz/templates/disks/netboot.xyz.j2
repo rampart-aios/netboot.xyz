@@ -119,7 +119,7 @@ goto menu || goto failsafe
 
 # Ubuntu boot configuration
 :setup_ubuntu
-set mirror https://releases.ubuntu.com
+set mirror https://old-releases.ubuntu.com/releases/
 set base_dir ubuntu
 set codename noble
 set version 24.04.2
@@ -128,8 +128,8 @@ set department ro
 set machine ws006964
 
 # Set derived URLs
-set kernel_url ${mirror}/${codename}/netboot/${os_arch}
-set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
+set kernel_url ${mirror}/${version}/netboot/${os_arch}
+set ubuntu_iso_url ${mirror}/${version}/${base_dir}-${version}-live-server-${os_arch}.iso
 set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
 
 # Boot Ubuntu installer
