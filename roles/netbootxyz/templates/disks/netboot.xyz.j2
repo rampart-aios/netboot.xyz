@@ -141,13 +141,12 @@ echo ISO URL: ${ubuntu_iso_url}
 
 # Test if URLs are accessible
 echo Testing kernel URL accessibility...
-ping -c 1 ${mirror} || echo Warning: Mirror not reachable
 
 imgfree
 echo Loading kernel from ${kernel_url}/linux...
 kernel ${kernel_url}/linux \
     root=/dev/ram0 \
-    ramdisk_size=3500000 \
+    ramdisk_size=0 \
     cloud-config-url=/dev/null \
     ip=dhcp \
     url=${ubuntu_iso_url} \
