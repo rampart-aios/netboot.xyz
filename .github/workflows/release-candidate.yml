@@ -1,4 +1,4 @@
-name: local_dev
+name: release-for-dev
 
 on:
   push:
@@ -27,9 +27,7 @@ jobs:
         ./script/build_release
 
     - name: Set Development Release Tag
-      run: |
-        VERSION=$(cat version-efi.txt | tr -d '\n')
-        echo "release_tag=${VERSION}-dev" >> $GITHUB_ENV
+      run: echo "release_tag=$(cat version.txt)-dev" >> $GITHUB_ENV
 
     - name: Tag dev Release
       run: |
