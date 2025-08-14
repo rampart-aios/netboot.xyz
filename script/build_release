@@ -5,7 +5,6 @@ NBXYZ_OVERRIDES=default
 BUILDOUT_DIR="buildout/ipxe"
 GITHUBOUT_DIR="githubout"
 EFI_SOURCE_FILE="netboot.xyz.efi"
-EFI_FILE_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${SHORT_COMMIT}.efi"
 SHORT_COMMIT=${GITHUB_SHA:0:7}
 
 # Get branch name and short commit hash for rampart-aios naming
@@ -40,11 +39,17 @@ docker run --rm -i -v $(pwd):/buildout localbuild
 
 # Verify build output and rename EFI file
 if [[ -f "${BUILDOUT_DIR}/${EFI_SOURCE_FILE}" ]]; then
-  mkdir -p "${GITHUBOUT_DIR}"
-  mv "${BUILDOUT_DIR}/${EFI_SOURCE_FILE}" "${GITHUBOUT_DIR}/${EFI_FILE_NAME}"
-  ls -la "${GITHUBOUT_DIR}/"
-
+  EFI_FILE_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${SHORT_COMMIT}.efi"
+  
+  # Rename EFI file
+  mv "${BUILDOUT_DIR}/${EFI_SOURCE_FILE}" "${BUILDOUT_DIR}/${EFI_FILE_NAME}"
   echo "EFI_FILE_NAME=${EFI_FILE_NAME}"
+  
+  # Create githubout with EFI for release
+  mkdir -p "${GITHUBOUT_DIR}"
+  cp "${BUILDOUT_DIR}/${EFI_FILE_NAME}" "${GITHUBOUT_DIR}/"
+  ls -la "${GITHUBOUT_DIR}/"
+  
   echo "Build completed successfully"
 else
   echo "Error: ${EFI_SOURCE_FILE} not found in ${BUILDOUT_DIR}/"
