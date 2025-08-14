@@ -3,14 +3,16 @@ name: pull-requests
 on:
   pull_request:
     branches:
-      - development
-      - RC
-      - master
+      - local_dev
+      - local_main
 
 jobs:
-  test-pr:
+  test:
     name: Test Pull Request
     runs-on: ubuntu-latest
+    concurrency:
+      group: pr-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
 
@@ -27,19 +29,33 @@ jobs:
     - name: Syntax Check
       run: |
         ansible-playbook site.yml --syntax-check
+    
+    # TODO: Uncomment this after we fix the AnsibleCollectionFinder issue
+    # - name: Ansible lint
+    #   run: |
+    #     ansible-lint -v roles/netbootxyz/tasks
 
-    - name: Ansible lint
-      run: |
-        ansible-lint -v roles/netbootxyz/tasks
-
-  build-pr:
-    name: Build Pull Request
+  build:
+    name: Build EFI Bootloader
     runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v5
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Build PR release
+    - name: Build EFI
       run: |
-        ./script/build_release pr
+        echo "Building EFI"
+        NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
+        echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
+
+    - name: Upload EFI
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.NEW_NAME }}
+        path: buildout/ipxe/${{ env.NEW_NAME }}
+        retention-days: 90
