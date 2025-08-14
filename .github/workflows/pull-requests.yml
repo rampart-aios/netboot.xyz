@@ -29,7 +29,8 @@ jobs:
     - name: Syntax Check
       run: |
         ansible-playbook site.yml --syntax-check
-
+    
+    # TODO: Uncomment this after we fix the AnsibleCollectionFinder issue
     # - name: Ansible lint
     #   run: |
     #     ansible-lint -v roles/netbootxyz/tasks
