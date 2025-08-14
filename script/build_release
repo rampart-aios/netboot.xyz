@@ -34,10 +34,10 @@ docker run --rm -i -v $(pwd):/buildout localbuild
 
 # Rename netboot.xyz.efi to rampart-aios convention
 if [[ -f "buildout/ipxe/netboot.xyz.efi" ]]; then
-  NEW_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${SHORT_COMMIT}.efi"
-  mv "buildout/ipxe/netboot.xyz.efi" "buildout/ipxe/${NEW_NAME}"
-  echo "Successfully renamed to ${NEW_NAME}"
-  echo "NEW_NAME=${NEW_NAME}"
+  EFI_FILE_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${SHORT_COMMIT}.efi"
+  mv "buildout/ipxe/netboot.xyz.efi" "buildout/ipxe/${EFI_FILE_NAME}"
+  echo "Successfully renamed to ${EFI_FILE_NAME}"
+  echo "EFI_FILE_NAME=${EFI_FILE_NAME}"
 else
   echo "Error: netboot.xyz.efi not found in buildout/ipxe/"
   ls -la buildout/ipxe/ || echo "Directory is empty or does not exist"

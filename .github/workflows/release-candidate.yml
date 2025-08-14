@@ -1,66 +1,36 @@
-name: release-candidate
+name: local_dev
 
 on:
-  push:
+  workflow_run:
+    workflows: ["pull-requests"]
+    types: [completed]
     branches:
-      - RC
+      - local_dev
+      - feat-efi-localdev-pipeline
   workflow_dispatch:
 
-env:
-  DISCORD_HOOK_URL: ${{ secrets.DISCORD_HOOK_URL }}
-  GITHUB_SHA: ${{ github.sha }}
-
 jobs:
-  rc-build:
-    name: Build Release Candidate
+  dev-build:
+    name: Build Development Release
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: write
+    concurrency:
+      group: dev-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: RC
+        ref: local_dev
 
-    - name: Retrieve Certs
-      run: |
-        ./script/retrieve_certs
-      env:
-        GIT_USER: ${{ secrets.GIT_USER }}
-        GIT_AUTH: ${{ secrets.GIT_AUTH }}
-        GIT_URL: ${{ secrets.GIT_URL }}
-        CERTS_KEY: ${{ secrets.CERTS_KEY }}
-
-    - name: Set Release Tag
-      run: echo "release_tag=$(cat version.txt)-RC" >> $GITHUB_ENV
-
-    - name: Build RC release
-      run: |
-        ./script/build_release rc
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
+    - name: Download EFI artifacts from PR workflow
+      uses: actions/download-artifact@v4
       with:
-        role-to-assume: ${{ secrets.AWS_ROLE_STAGING }}
-        aws-region: ${{ secrets.AWS_ACCESS_REGION }}
+        name: ${{ github.event.workflow_run.outputs.efi-file-name }}
+        path: buildout/ipxe/
 
-    - name: Deploy RC to release-candidate bucket
-      run: |
-        aws s3 sync --no-progress --acl public-read s3out s3://${{ secrets.AWS_S3_BUCKET_STAGING }}/${{ env.release_tag }}
+    - name: Set Development Release Tag
+      run: echo "release_tag=v0.0.1-dev" >> $GITHUB_ENV
 
-    - name: Deploy RC to rolling bucket
-      run: |
-        aws s3 sync --no-progress --acl public-read s3out-latest s3://${{ secrets.AWS_S3_BUCKET_STAGING }}/rc
-
-    - name: Deploy RC version file
-      run: |
-        aws s3 sync --no-progress --acl public-read s3outver s3://${{ secrets.AWS_S3_BUCKET_STAGING }}
-
-    - name: Invalidate Cloudfront
-      run: |
-        aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID_STAGING }} --paths "/rc/*" "/rc/ipxe/*" "/rc/sigs/*"
-
-    - name: Tag RC Release
+    - name: Tag dev Release
       run: |
         ./script/tag ${{ env.release_tag }}
 
@@ -68,10 +38,10 @@ jobs:
       id: extract-release-notes
       uses: ffurrer2/extract-release-notes@v2
 
-    - name: Create RC Release and Upload Assets
+    - name: Create dev Release and Upload Assets
       uses: svenstaro/upload-release-action@v2
       with:
-        file: githubout/*
+        file: buildout/ipxe/*
         file_glob: true
         overwrite: true
         prerelease: true
@@ -79,13 +49,3 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ env.release_tag }}
         body: ${{ steps.extract-release-notes.outputs.release_notes }}
-
-    - name: Notify Discord on failure
-      if: failure()
-      run: |
-        ./script/message failure
-
-    - name: Notify Discord on completion
-      if: success()
-      run: |
-        ./script/message rc-push
