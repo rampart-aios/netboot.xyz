@@ -27,7 +27,10 @@ jobs:
         ./script/build_release
 
     - name: Set Development Release Tag
-      run: echo "release_tag=$(cat version-efi.txt)-dev" >> $GITHUB_ENV
+      run: |
+        ls -la
+        VERSION=$(cat ${{ github.workspace }}/version-efi.txt | tr -d '\n')
+        echo "release_tag=${VERSION}-dev" >> $GITHUB_ENV
 
     - name: Tag dev Release
       run: |
