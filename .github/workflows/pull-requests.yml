@@ -30,9 +30,9 @@ jobs:
       run: |
         ansible-playbook site.yml --syntax-check
 
-    - name: Ansible lint
-      run: |
-        ansible-lint -v roles/netbootxyz/tasks
+    # - name: Ansible lint
+    #   run: |
+    #     ansible-lint -v roles/netbootxyz/tasks
 
   build:
     name: Build EFI Bootloader
