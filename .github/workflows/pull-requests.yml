@@ -59,5 +59,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.EFI_FILE_NAME }}
-        path: buildout/ipxe/${{ env.EFI_FILE_NAME }}
+        path: githubout/*
         retention-days: 90
