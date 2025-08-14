@@ -5,16 +5,11 @@ on:
     branches:
       - local_dev
       - local_main
-  push:
-    branches-ignore:
-      - local_dev
-      - local_main
 
 jobs:
   test:
     name: Test Pull Request
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
     - uses: actions/checkout@v4
 
@@ -39,10 +34,6 @@ jobs:
   build:
     name: Build EFI Bootloader
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    concurrency:
-      group: build-${{ github.head_ref || github.ref_name }}
-      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
 
