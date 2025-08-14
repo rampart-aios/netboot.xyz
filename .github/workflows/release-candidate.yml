@@ -1,4 +1,4 @@
-name: release-for-dev
+name: release-dev
 
 on:
   push:
@@ -27,15 +27,11 @@ jobs:
         ./script/build_release
 
     - name: Set Development Release Tag
-      run: echo "release_tag=$(cat version.txt)-dev" >> $GITHUB_ENV
+      run: echo "release_tag=$(cat version-efi.txt)-dev" >> $GITHUB_ENV
 
     - name: Tag dev Release
       run: |
         ./script/tag ${{ env.release_tag }}
-
-    - name: Extract release notes
-      id: extract-release-notes
-      uses: ffurrer2/extract-release-notes@v2
 
     - name: Create dev Release and Upload Assets
       uses: svenstaro/upload-release-action@v2
@@ -47,4 +43,5 @@ jobs:
         release_name: ${{ env.release_tag }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ env.release_tag }}
-        body: ${{ steps.extract-release-notes.outputs.release_notes }}
+        body: |
+          Development release built from the local_dev branch.
