@@ -57,5 +57,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.NEW_NAME }}
-        path: buildout/ipxe/*.efi
+        path: buildout/ipxe/${{ env.NEW_NAME }}
         retention-days: 90
