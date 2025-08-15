@@ -41,6 +41,8 @@ jobs:
     concurrency:
       group: build-${{ github.head_ref || github.ref_name }}
       cancel-in-progress: true
+    outputs:
+      efi-file-name: ${{ env.EFI_FILE_NAME }}
     steps:
     - uses: actions/checkout@v4
 
@@ -50,12 +52,12 @@ jobs:
     - name: Build EFI
       run: |
         echo "Building EFI"
-        NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
-        echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
+        EFI_FILE_NAME=$(./script/build_release | grep "EFI_FILE_NAME=" | cut -d'=' -f2)
+        echo "EFI_FILE_NAME=$EFI_FILE_NAME" >> $GITHUB_ENV
 
     - name: Upload EFI
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.NEW_NAME }}
-        path: buildout/ipxe/${{ env.NEW_NAME }}
+        name: ${{ env.EFI_FILE_NAME }}
+        path: githubout/*
         retention-days: 90

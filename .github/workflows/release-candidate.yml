@@ -1,91 +1,59 @@
-name: release-candidate
+name: release-dev
 
 on:
   push:
     branches:
-      - RC
+      - local_dev
+      - feat-efi-localdev-pipeline
   workflow_dispatch:
 
-env:
-  DISCORD_HOOK_URL: ${{ secrets.DISCORD_HOOK_URL }}
-  GITHUB_SHA: ${{ github.sha }}
-
 jobs:
-  rc-build:
-    name: Build Release Candidate
+  dev-build:
+    name: Build Development Release
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: write
+    concurrency:
+      group: dev-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: RC
+        ref: ${{ github.head_ref || github.ref_name }}
+        fetch-depth: 0
 
-    - name: Retrieve Certs
+    - name: Configure Git
       run: |
-        ./script/retrieve_certs
-      env:
-        GIT_USER: ${{ secrets.GIT_USER }}
-        GIT_AUTH: ${{ secrets.GIT_AUTH }}
-        GIT_URL: ${{ secrets.GIT_URL }}
-        CERTS_KEY: ${{ secrets.CERTS_KEY }}
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
 
-    - name: Set Release Tag
-      run: echo "release_tag=$(cat version.txt)-RC" >> $GITHUB_ENV
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Build RC release
+    - name: Tag dev Release
       run: |
-        ./script/build_release rc
+        GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./script/tag
+        # The script handles all version logic: starts from v0.0.1, checks upstream, auto-increments
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_STAGING }}
-        aws-region: ${{ secrets.AWS_ACCESS_REGION }}
-
-    - name: Deploy RC to release-candidate bucket
+    - name: Build dev release
       run: |
-        aws s3 sync --no-progress --acl public-read s3out s3://${{ secrets.AWS_S3_BUCKET_STAGING }}/${{ env.release_tag }}
+        VERSION_TAG=${{ env.VERSION_TAG }} ./script/build_release
 
-    - name: Deploy RC to rolling bucket
+    - name: Push Tag to Origin
       run: |
-        aws s3 sync --no-progress --acl public-read s3out-latest s3://${{ secrets.AWS_S3_BUCKET_STAGING }}/rc
+        git push origin ${{ env.VERSION_TAG }}
 
-    - name: Deploy RC version file
-      run: |
-        aws s3 sync --no-progress --acl public-read s3outver s3://${{ secrets.AWS_S3_BUCKET_STAGING }}
-
-    - name: Invalidate Cloudfront
-      run: |
-        aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID_STAGING }} --paths "/rc/*" "/rc/ipxe/*" "/rc/sigs/*"
-
-    - name: Tag RC Release
-      run: |
-        ./script/tag ${{ env.release_tag }}
-
-    - name: Extract release notes
-      id: extract-release-notes
-      uses: ffurrer2/extract-release-notes@v2
-
-    - name: Create RC Release and Upload Assets
+    - name: Create dev Release and Upload Assets
       uses: svenstaro/upload-release-action@v2
       with:
         file: githubout/*
         file_glob: true
         overwrite: true
-        prerelease: true
-        release_name: ${{ env.release_tag }}
+        draft: true
+        release_name: ${{ env.VERSION_TAG }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        tag: ${{ env.release_tag }}
-        body: ${{ steps.extract-release-notes.outputs.release_notes }}
-
-    - name: Notify Discord on failure
-      if: failure()
-      run: |
-        ./script/message failure
-
-    - name: Notify Discord on completion
-      if: success()
-      run: |
-        ./script/message rc-push
+        tag: ${{ env.VERSION_TAG }}
+        body: |
+          Development release built from the local_dev branch.
+          
+          **Version**: ${{ env.VERSION_TAG }}
+          **Branch**: ${{ github.ref_name }}
+          **Commit**: ${{ github.sha }}
