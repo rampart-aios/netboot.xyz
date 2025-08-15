@@ -2,19 +2,10 @@
 
 # Function to get next available version
 get_next_version() {
-    local base_version="$1"
-    local major minor patch
-    local current_version="$base_version"
-    
-    # Parse version components (e.g., v0.0.1 -> 0, 0, 1)
-    if [[ "$current_version" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-        major="${BASH_REMATCH[1]}"
-        minor="${BASH_REMATCH[2]}"
-        patch="${BASH_REMATCH[3]}"
-    else
-        echo "Error: Invalid version format. Expected format: vX.Y.Z" >&2
-        exit 1
-    fi
+    local major=0
+    local minor=0
+    local patch=1
+    local current_version="v${major}.${minor}.${patch}"
     
     # Keep incrementing patch version until we find an available one
     while true; do
@@ -30,15 +21,16 @@ get_next_version() {
             patch=$((patch + 1))
             current_version="v${major}.${minor}.${patch}"
         else
-            echo "Error: GitHub API returned status code $CODE" >&2
+            echo "ERROR: GitHub API returned status code $CODE" >&2
             exit 1
         fi
     done
 }
 
 # Main execution
-if [[ -z "$RELEASE_TAG" ]]; then
-    echo "Error: RELEASE_TAG environment variable not set" >&2
+# Check if GITHUB_TOKEN is available for API calls
+if [[ -z "$GITHUB_TOKEN" ]]; then
+    echo "ERROR: GITHUB_TOKEN environment variable not set" >&2
     exit 1
 fi
 
@@ -48,15 +40,17 @@ if [[ -z "$(git config user.email)" ]]; then
     git config user.name "GitHub Action"
 fi
 
-# Get the next available version
-NEXT_VERSION=$(get_next_version "$RELEASE_TAG")
-echo "Next available version: $NEXT_VERSION"
+# Get the next available version starting from v0.0.1
+BASE_VERSION="v0.0.1"
+NEXT_VERSION=$(get_next_version)
 
 # Create the tag (force overwrite if it exists locally)
 git tag -f "$NEXT_VERSION"
 
-# Output the version for the workflow to use
+# Output both versions for the workflow to use
 if [[ -n "$GITHUB_ENV" ]]; then
+    echo "BASE_VERSION=$BASE_VERSION" >> $GITHUB_ENV
     echo "VERSION_TAG=$NEXT_VERSION" >> $GITHUB_ENV
 fi
-echo "VERSION_TAG=$NEXT_VERSION"
+echo "Base tag: $BASE_VERSION"
+echo "Next available tag: $NEXT_VERSION"
