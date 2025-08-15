@@ -39,11 +39,18 @@ docker run --rm -i -v $(pwd):/buildout localbuild
 
 # Verify build output and rename EFI file
 if [[ -f "${BUILDOUT_DIR}/${EFI_SOURCE_FILE}" ]]; then
-  EFI_FILE_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${SHORT_COMMIT}.efi"
+  # Use VERSION_TAG if provided, otherwise fallback to commit hash
+  if [[ -n "${VERSION_TAG}" ]]; then
+    EFI_FILE_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${VERSION_TAG}.efi"
+  else
+    EFI_FILE_NAME="netboot.xyz-rampart-aios-${BRANCH_NAME}-${SHORT_COMMIT}.efi"
+  fi
   
-  # Rename EFI file
+  # Rename EFI file to the desired name
   mv "${BUILDOUT_DIR}/${EFI_SOURCE_FILE}" "${BUILDOUT_DIR}/${EFI_FILE_NAME}"
   echo "EFI_FILE_NAME=${EFI_FILE_NAME}"
+  echo "Branch: ${BRANCH_NAME}"
+  echo "Version: ${VERSION_TAG:-$SHORT_COMMIT}"
   
   # Create githubout with EFI for release
   mkdir -p "${GITHUBOUT_DIR}"
