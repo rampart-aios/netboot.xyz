@@ -23,8 +23,9 @@ set machine ciai-cpu-w05587
 
 # Derived URLs
 set kernel_url ${mirror_netbootxyz}/${version}-${netbootxyz_release}
-set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
-set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
+{% comment %} set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso {% endcomment %}
+set ubuntu_iso_url http://10.127.49.55:8080/deploy/elemental-cluster-1-2025-10-07T09_42_14Z.iso
+{% comment %} set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine} {% endcomment %}
 
 # =============================================================================
 # SYSTEM VARIABLES
@@ -149,7 +150,7 @@ echo ${bold}${fg_gre}Starting Ubuntu 24.04.3 Installation${fg_whi}${boldoff}
 echo Kernel: ${kernel_url}/vmlinuz
 echo Initrd: ${kernel_url}/initrd  
 echo ISO: ${ubuntu_iso_url}
-echo Autoinstall: ${autoinstall_url}
+{% comment %} echo Autoinstall: ${autoinstall_url} {% endcomment %}
 echo
 
 imgfree
@@ -159,7 +160,6 @@ kernel ${kernel_url}/vmlinuz \
     cloud-config-url=/dev/null \
     ip=dhcp \
     url=${ubuntu_iso_url} \
-    autoinstall ds=nocloud-net;s=${autoinstall_url}/ \
     initrd=initrd
 
 initrd ${kernel_url}/initrd
