@@ -1,0 +1,79 @@
+name: build-efi
+
+on:
+  workflow_dispatch:
+    inputs:
+      mirror:
+        description: "Ubuntu mirror base URL"
+        required: false
+        default: "https://releases.ubuntu.com"
+      base_dir:
+        description: "Ubuntu base directory"
+        required: false
+        default: "ubuntu"
+      codename:
+        description: "Ubuntu codename"
+        required: false
+        default: "noble"
+      version:
+        description: "Ubuntu version"
+        required: false
+        default: "24.04.3"
+      os_arch:
+        description: "Target architecture"
+        required: false
+        default: "amd64"
+      department:
+        description: "Target department"
+        required: false
+        default: "ciai-ws"
+      machine:
+        description: "Target machine identifier"
+        required: false
+        default: "ciai-cpu-w05587"
+
+env:
+  MIRROR: ${{ github.event.inputs.mirror || 'https://releases.ubuntu.com' }}
+  BASE_DIR: ${{ github.event.inputs.base_dir || 'ubuntu' }}
+  CODENAME: ${{ github.event.inputs.codename || 'noble' }}
+  VERSION: ${{ github.event.inputs.version || '24.04.3' }}
+  OS_ARCH: ${{ github.event.inputs.os_arch || 'amd64' }}
+  DEPARTMENT: ${{ github.event.inputs.department || 'ciai-ws' }}
+  MACHINE: ${{ github.event.inputs.machine || 'ciai-cpu-w05587' }}
+
+jobs:
+  build:
+    name: Build EFI Bootloader
+    runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.ref_name }}
+      cancel-in-progress: true
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Show configuration inputs
+      run: |
+        echo "MIRROR=${MIRROR}"
+        echo "BASE_DIR=${BASE_DIR}"
+        echo "CODENAME=${CODENAME}"
+        echo "VERSION=${VERSION}"
+        echo "OS_ARCH=${OS_ARCH}"
+        echo "DEPARTMENT=${DEPARTMENT}"
+        echo "MACHINE=${MACHINE}"
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build EFI
+      run: |
+        echo "Building EFI"
+        NEW_NAME=$(./script/build_release | grep "NEW_NAME=" | cut -d'=' -f2)
+        echo "NEW_NAME=$NEW_NAME" >> $GITHUB_ENV
+
+    - name: Upload EFI
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.NEW_NAME }}
+        path: buildout/ipxe/${{ env.NEW_NAME }}
+        retention-days: 90
+
