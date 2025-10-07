@@ -8,15 +8,15 @@
 # =============================================================================
 
 # Ubuntu release configuration
-set mirror https://releases.ubuntu.com
-set base_dir ubuntu
-set codename noble
-set version 24.04.3
-set os_arch amd64
+set mirror {{ mirror | default(lookup('env','MIRROR') | default('https://releases.ubuntu.com')) }}
+set base_dir {{ base_dir | default(lookup('env','BASE_DIR') | default('ubuntu')) }}
+set codename {{ codename | default(lookup('env','CODENAME') | default('noble')) }}
+set version {{ version | default(lookup('env','VERSION') | default('24.04.3')) }}
+set os_arch {{ os_arch | default(lookup('env','OS_ARCH') | default('amd64')) }}
 
 # Target machine configuration  
-set department ro
-set machine ws006964
+set department {{ department | default(lookup('env','DEPARTMENT') | default('ciai-ws')) }}
+set machine {{ machine | default(lookup('env','MACHINE') | default('ciai-cpu-w05587')) }}
 
 # Derived URLs
 set kernel_url ${mirror}/${codename}/netboot/${os_arch}
