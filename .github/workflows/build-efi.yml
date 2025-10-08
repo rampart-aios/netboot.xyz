@@ -10,13 +10,13 @@ on:
         description: "Machine"
         required: true
       kernel_url:
-        description: "Custom kernel base URL (optional)"
+        description: "Custom kernel URL (optional)"
         required: false
       ubuntu_iso_url:
         description: "Custom Ubuntu ISO URL (optional)"
         required: false
       autoinstall_url:
-        description: "Custom autoinstall base URL (optional)"
+        description: "Custom autoinstall URL (optional)"
         required: false
 
 env:

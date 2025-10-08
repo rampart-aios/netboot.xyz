@@ -36,7 +36,6 @@ docker run --rm -i -v $(pwd):/buildout localbuild
 if [[ -f "buildout/ipxe/netboot.xyz.efi" ]]; then
   NEW_NAME="netboot.xyz-${BRANCH_NAME}-${SHORT_COMMIT}-${DEPARTMENT}-${MACHINE}.efi"
   mv "buildout/ipxe/netboot.xyz.efi" "buildout/ipxe/${NEW_NAME}"
-  echo "Successfully renamed to ${NEW_NAME}"
   echo "NEW_NAME=${NEW_NAME}"
 else
   echo "Error: netboot.xyz.efi not found in buildout/ipxe/"
