@@ -6,12 +6,15 @@
 # =============================================================================
 # CONFIGURATION - Modify these values as needed
 # =============================================================================
+# find the suitable netbootxyz mirror at https://github.com/netbootxyz/ubuntu-squash/releases
 
 # Ubuntu release configuration
 set mirror {{ mirror | default(lookup('env','MIRROR') | default('https://releases.ubuntu.com')) }}
+set mirror_netbootxyz {{ mirror_netbootxyz | default(lookup('env','MIRROR_NETBOOTXYZ') | default('https://github.com/netbootxyz/ubuntu-squash/releases/download')) }}
 set base_dir {{ base_dir | default(lookup('env','BASE_DIR') | default('ubuntu')) }}
 set codename {{ codename | default(lookup('env','CODENAME') | default('noble')) }}
 set version {{ version | default(lookup('env','VERSION') | default('24.04.3')) }}
+set netbootxyz_release {{ netbootxyz_release | default(lookup('env','NETBOOTXYZ_RELEASE') | default('dac09526')) }}
 set os_arch {{ os_arch | default(lookup('env','OS_ARCH') | default('amd64')) }}
 
 # Target machine configuration  
@@ -19,9 +22,12 @@ set department {{ department | default(lookup('env','DEPARTMENT') | default('cia
 set machine {{ machine | default(lookup('env','MACHINE') | default('ciai-cpu-w05587')) }}
 
 # Derived URLs
-set kernel_url ${mirror}/${codename}/netboot/${os_arch}
-set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
-set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
+set kernel_url {{ kernel_url | default(lookup('env','KERNEL_URL') | default('')) }}
+isset ${kernel_url} || set kernel_url ${mirror_netbootxyz}/${version}-${netbootxyz_release}
+set ubuntu_iso_url {{ ubuntu_iso_url | default(lookup('env','UBUNTU_ISO_URL') | default('')) }}
+isset ${ubuntu_iso_url} || set ubuntu_iso_url ${mirror}/${codename}/${base_dir}-${version}-live-server-${os_arch}.iso
+set autoinstall_url {{ autoinstall_url | default(lookup('env','AUTOINSTALL_URL') | default('')) }}
+isset ${autoinstall_url} || set autoinstall_url https://rampart-aios.github.io/autoinstall/deploy/${department}/${machine}
 
 # =============================================================================
 # SYSTEM VARIABLES
@@ -143,14 +149,14 @@ goto ubuntu_boot || goto failsafe
 
 :ubuntu_boot
 echo ${bold}${fg_gre}Starting Ubuntu 24.04.3 Installation${fg_whi}${boldoff}
-echo Kernel: ${kernel_url}/linux
+echo Kernel: ${kernel_url}/vmlinuz
 echo Initrd: ${kernel_url}/initrd  
 echo ISO: ${ubuntu_iso_url}
 echo Autoinstall: ${autoinstall_url}
 echo
 
 imgfree
-kernel ${kernel_url}/linux \
+kernel ${kernel_url}/vmlinuz \
     root=/dev/ram0 \
     ramdisk_size=0 \
     cloud-config-url=/dev/null \
